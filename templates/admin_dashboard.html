@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% block title %}Admin · Sistema de Consultas{% endblock %}
+{% block page_id %}admin{% endblock %}
+{% block topbar_title %}Painel Administrativo{% endblock %}
+
+{% block content %}
+<div class="admin-dashboard">
+<div class="page-intro">
+    <div>
+        <span class="eyebrow">ADMINISTRAÇÃO</span>
+        <h1>Visão geral da plataforma</h1>
+        <p>Gerencie contas, organize planos por provedor, execute consultas em lote e acompanhe a atividade.</p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a href="/admin/batch" class="btn-sm primary" style="text-decoration:none;display:inline-flex;align-items:center;gap:.4rem">⚡ Consulta em Massa (Lotes)</a>
+        <button class="btn-sm primary" onclick="openUserModal()">+ Criar usuário</button>
+    </div>
+</div>
+<div class="stat-cards">
+    <div class="stat-card"><div class="label">Usuários</div><div class="value">{{ total_users }}</div></div>
+    <div class="stat-card"><div class="label">Consultas Hoje</div><div class="value">{{ today_queries }}</div></div>
+    <div class="stat-card"><div class="label">Total Consultas</div><div class="value">{{ total_queries }}</div></div>
+    <div class="stat-card"><div class="label">Provedores</div><div class="value">{{ providers|length }}</div></div>
+</div>
+
+<div class="tabs dashboard-tabs" aria-label="Seções administrativas">
+    <button class="active" onclick="switchTab(this,'tab-users')">Usuários</button>
+    <button onclick="switchTab(this,'tab-plans')">Planos</button>
+    <button onclick="switchTab(this,'tab-providers')">Provedores</button>
+    <button onclick="switchTab(this,'tab-logs')">Atividade</button>
+    <button onclick="location.href='/admin/batch'">Consulta em Massa (Batch)</button>
+</div>
+
+<!-- Users Tab -->
+<div id="tab-users" class="tab-content active">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div><h3 class="section-title" style="margin:0">Contas de usuários</h3><p class="section-description">Acessos, planos e consumo em um só lugar.</p></div>
+        <button class="btn-sm primary" onclick="openUserModal()">+ Novo Usuário</button>
+    </div>
+    <table class="data-table" id="users-table">
+        <thead><tr><th>ID</th><th>Usuário</th><th>Email</th><th>Tipo de conta</th><th>Plano</th><th>Créditos Hoje</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<!-- Plans Tab -->
+<div id="tab-plans" class="tab-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div><h3 class="section-title" style="margin:0">Planos e limites</h3><p class="section-description">Configure planos de Consulta, API ou Consulta + API, selecionando módulos por provedor.</p></div>
+        <button class="btn-sm primary" onclick="openPlanModal()">+ Novo Plano</button>
+    </div>
+    <table class="data-table" id="plans-table">
+        <thead><tr><th>ID</th><th>Nome</th><th>Modalidade</th><th>Limite Diário</th><th>Preço</th><th>Módulos</th><th>Usuários</th><th>Ações</th></tr></thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<!-- Providers Tab -->
+<div id="tab-providers" class="tab-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h3 class="section-title" style="margin:0">Provedores de API</h3>
+        <button class="btn-sm primary" onclick="openProviderModal()">+ Novo provedor</button>
+    </div>
+    <table class="data-table" id="providers-table">
+        <thead><tr><th>ID</th><th>Nome</th><th>Slug</th><th>URL Base</th><th>Consultas</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<!-- Logs Tab -->
+<div id="tab-logs" class="tab-content">
+    <h3 class="section-title">Atividade recente · últimas 200 consultas</h3>
+    <table class="data-table" id="logs-table">
+        <thead><tr><th>ID</th><th>Módulo</th><th>Consulta</th><th>Provider</th><th>Resultados</th><th>Status</th><th>Tempo</th><th>Data</th></tr></thead>
+        <tbody></tbody>
+    </table>
+</div>
+</div>
+{% endblock %}
+
+{% block dialogs %}
+<dialog class="modal" id="user-modal">
+    <h3 id="user-modal-title">Novo Usuário</h3>
+    <form id="user-form">
+        <input type="hidden" name="id" value=""/>
+        <div class="form-grid">
+            <div class="field"><label>Username</label><input name="username" required/></div>
+            <div class="field"><label>Email</label><input name="email" type="email"/></div>
+            <div class="field"><label>Senha</label><input name="password" type="password"/></div>
+            <div class="field"><label>Role / Modalidade</label>
+                <select name="role">
+                    <option value="user">Usuário (Consulta)</option>
+                    <option value="api_user">Usuário API</option>
+                    <option value="consulta_api">Consulta + API</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="field"><label>Plano</label>
+                <select name="plan_id" id="user-plan-select"><option value="">Nenhum</option>
+                {% for p in plans %}<option value="{{ p.id }}">{{ p.name }} ({{ 'Consulta + API' if p.plan_type in ('consulta_api','ambos') else 'API' if p.plan_type == 'api' else 'Consulta' }})</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn-sm" onclick="this.closest('dialog').close()">Cancelar</button>
+            <button type="submit" class="btn-sm primary">Salvar</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="modal wide" id="plan-modal">
+    <h3 id="plan-modal-title">Novo Plano</h3>
+    <form id="plan-form">
+        <input type="hidden" name="id" value=""/>
+        <div class="form-grid">
+            <div class="field"><label>Nome do Plano</label><input name="name" required placeholder="Ex: Empresarial Completo"/></div>
+            <div class="field"><label>Tipo de Plano</label>
+                <select name="plan_type">
+                    <option value="consulta">Consulta</option>
+                    <option value="api">API</option>
+                    <option value="consulta_api">Consulta + API</option>
+                </select>
+            </div>
+            <div class="field"><label>Limite Diário</label><input name="daily_limit" type="number" value="100"/></div>
+            <div class="field"><label>Limite Mensal</label><input name="monthly_limit" type="number" value="3000"/></div>
+            <div class="field"><label>Preço (R$)</label><input name="price" type="number" step="0.01" value="0"/></div>
+        </div>
+        <div class="field" style="margin-top:.75rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.65rem">
+                <label style="margin:0">Módulos por Provedor</label>
+                <div style="display:flex;gap:.5rem">
+                    <button type="button" class="btn-sm" onclick="document.querySelectorAll('#plan-modules input[type=checkbox]').forEach(c=>c.checked=true)" style="font-size:.72rem">Marcar todos os provedores</button>
+                    <button type="button" class="btn-sm" onclick="document.querySelectorAll('#plan-modules input[type=checkbox]').forEach(c=>c.checked=false)" style="font-size:.72rem">Desmarcar todos</button>
+                </div>
+            </div>
+            <div id="plan-modules" style="max-height:420px;overflow-y:auto;padding-right:.25rem">
+                {% for prov_slug, prov_title in [('minhareceita', 'Provedor: Receita Federal + CPF Busca (Compliance Empresarial)'), ('cpfbusca', 'Provedor: CPF Busca (Consultas Cadastrais, Busca, Fotos, Veículos e Financeiro)'), ('dataflow', 'Provedor: DataFlow+')] %}
+                {% set prov_mods = modules | selectattr('provider', 'equalto', prov_slug) | list %}
+                {% if prov_mods %}
+                <div class="provider-section" data-provider-section="{{ prov_slug }}">
+                    <div class="provider-section-head">
+                        <div class="provider-section-title">
+                            <span class="badge {{ 'purple' if prov_slug == 'minhareceita' else 'blue' if prov_slug == 'cpfbusca' else 'orange' }}">{{ prov_slug|upper }}</span>
+                            <span>{{ prov_title }}</span>
+                            <small style="color:var(--muted);font-weight:500">({{ prov_mods|length }} módulo{{ 's' if prov_mods|length != 1 else '' }})</small>
+                        </div>
+                        <div style="display:flex;gap:.35rem">
+                            <button type="button" class="btn-sm" style="font-size:.7rem;padding:.2rem .55rem" onclick="toggleProviderMods('{{ prov_slug }}', true)">Marcar seção</button>
+                            <button type="button" class="btn-sm" style="font-size:.7rem;padding:.2rem .55rem" onclick="toggleProviderMods('{{ prov_slug }}', false)">Desmarcar seção</button>
+                        </div>
+                    </div>
+                    <div class="provider-section-grid">
+                        {% for m in prov_mods %}
+                        <label class="mod-check">
+                            <input type="checkbox" name="modules" value="{{ m.id }}" data-provider="{{ m.provider }}"/>
+                            <span class="mod-label">
+                                {{ m.label }}
+                                <span class="mod-sub">{{ m.id }} · {{ m.category }}</span>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn-sm" onclick="this.closest('dialog').close()">Cancelar</button>
+            <button type="submit" class="btn-sm primary">Salvar Plano</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="modal" id="provider-modal">
+    <h3 id="provider-modal-title">Novo Provider</h3>
+    <form id="provider-form">
+        <input type="hidden" name="id" value=""/>
+        <div class="form-grid">
+            <div class="field"><label>Nome</label><input name="name" required placeholder="CPF Busca"/></div>
+            <div class="field"><label>Slug</label><input name="slug" required placeholder="cpfbusca"/></div>
+            <div class="field"><label>URL Base</label><input name="base_url" required placeholder="https://cpfbusca.com/api/v1/query"/></div>
+            <div class="field"><label>Header de Auth</label><input name="auth_header" value="Authorization"/></div>
+        </div>
+        <div class="field" style="margin-top:.75rem"><label>API Key / Token</label><input name="auth_value" id="provider-auth-value" type="password" placeholder="mb_live_... (em edição, deixe vazio para manter)"/></div>
+        <div class="modal-actions">
+            <button type="button" class="btn-sm" onclick="this.closest('dialog').close()">Cancelar</button>
+            <button type="submit" class="btn-sm primary">Salvar</button>
+        </div>
+    </form>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const J='application/json';
+function switchTab(btn,id){
+    document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');document.getElementById(id).classList.add('active');
+}
+function toggleProviderMods(slug,state){
+    document.querySelectorAll(`#plan-modules input[data-provider="${slug}"]`).forEach(cb=>cb.checked=state);
+}
+function roleLabel(r){
+    if(r==='admin')return '<span class="badge blue">admin</span>';
+    if(r==='consulta_api')return '<span class="badge purple">consulta + api</span>';
+    if(r==='api_user')return '<span class="badge orange">api_user</span>';
+    return '<span class="badge green">consulta</span>';
+}
+function planTypeBadge(t){
+    if(t==='consulta_api'||t==='ambos')return '<span class="badge purple">Consulta + API</span>';
+    if(t==='api')return '<span class="badge orange">API</span>';
+    return '<span class="badge blue">Consulta</span>';
+}
+
+// Users
+async function loadUsers(){
+    const r=await fetch('/api/admin/users');const d=await r.json();
+    document.querySelector('#users-table tbody').innerHTML=d.map(u=>`<tr>
+        <td>${u.id}</td><td>${u.username}</td><td>${u.email||'-'}</td>
+        <td>${roleLabel(u.role)}</td>
+        <td>${u.plan||'Nenhum'}</td><td>${u.credits_today}</td>
+        <td><span class="badge ${u.is_active?'green':'red'}">${u.is_active?'Ativo':'Inativo'}</span></td>
+        <td><a class="btn-sm primary" href="/admin/user/${u.id}" style="text-decoration:none;margin-right:.3rem">Ver</a><a class="btn-sm" href="/admin/user/${u.id}?edit=1">Editar</a>
+        ${u.username!=='admin'?`<button class="btn-sm danger" onclick="deleteUser(${u.id})">Excluir</button>`:''}</td>
+    </tr>`).join('');
+}
+
+async function openUserModal(data){
+    await loadPlans();
+    const m=document.getElementById('user-modal'),f=document.getElementById('user-form');
+    f.reset();f.id_field=data?.id||'';f.elements.id.value=data?.id||'';
+    if(data){f.elements.username.value=data.username;f.elements.email.value=data.email||'';
+        f.elements.role.value=data.role;f.elements.plan_id.value=data.plan_id||'';}
+    document.getElementById('user-modal-title').textContent=data?'Editar Usuário':'Novo Usuário';
+    m.showModal();
+}
+
+async function deleteUser(id){
+    const ok=await showConfirm('Tem certeza que deseja excluir este usuário?',{title:'Excluir Usuário',ok:'Excluir',danger:true});
+    if(!ok)return;
+    await fetch(`/api/admin/users/${id}`,{method:'DELETE'});toast('Usuário excluído');loadUsers();
+}
+
+document.getElementById('user-form').addEventListener('submit',async e=>{
+    e.preventDefault();const fd=new FormData(e.target);const id=fd.get('id');
+    const body={username:fd.get('username'),email:fd.get('email'),password:fd.get('password'),
+        role:fd.get('role'),plan_id:fd.get('plan_id')||null};
+    const r = id
+        ? await fetch(`/api/admin/users/${id}`,{method:'PUT',headers:{'Content-Type':J},body:JSON.stringify(body)})
+        : await fetch('/api/admin/users',{method:'POST',headers:{'Content-Type':J},body:JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok || d.error){toast(d.error||'Erro ao salvar usuário','error');return;}
+    e.target.closest('dialog').close();toast('Usuário salvo');loadUsers();
+});
+
+// Plans
+async function loadPlans(){
+    const r=await fetch('/api/admin/plans');const d=await r.json();
+    document.querySelector('#plans-table tbody').innerHTML=d.map(p=>`<tr>
+        <td>${p.id}</td><td><strong>${p.name}</strong></td><td>${planTypeBadge(p.plan_type)}</td>
+        <td>${p.daily_limit}</td><td>R$ ${p.price.toFixed(2)}</td><td>${(p.modules||[]).length} mód.</td><td>${p.user_count}</td>
+        <td><button class="btn-sm" onclick="editPlan(${p.id})">Editar</button>
+        <button class="btn-sm danger" onclick="deletePlan(${p.id})">Excluir</button></td>
+    </tr>`).join('');
+    const sel = document.getElementById('user-plan-select');
+    if (sel) {
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">Nenhum</option>' + d.map(p => {
+            const lbl = (p.plan_type === 'consulta_api' || p.plan_type === 'ambos') ? 'Consulta + API' : (p.plan_type === 'api' ? 'API' : 'Consulta');
+            return `<option value="${p.id}">${p.name} (${lbl})</option>`;
+        }).join('');
+        sel.value = cur;
+    }
+}
+
+function openPlanModal(data){
+    const m=document.getElementById('plan-modal'),f=document.getElementById('plan-form');
+    f.reset();f.elements.id.value=data?.id||'';
+    if(data){
+        f.elements.name.value=data.name;
+        f.elements.plan_type.value=data.plan_type==='ambos'?'consulta_api':(data.plan_type||'consulta');
+        f.elements.daily_limit.value=data.daily_limit;
+        f.elements.monthly_limit.value=data.monthly_limit;
+        f.elements.price.value=data.price;
+        document.querySelectorAll('#plan-modules input[type=checkbox]').forEach(cb=>{cb.checked=(data.modules||[]).includes(cb.value)});
+    } else {
+        document.querySelectorAll('#plan-modules input[type=checkbox]').forEach(cb=>{cb.checked=true});
+    }
+    document.getElementById('plan-modal-title').textContent=data?'Editar Plano':'Novo Plano';
+    m.showModal();
+}
+
+async function editPlan(id){
+    const r=await fetch('/api/admin/plans');const plans=await r.json();
+    const p=plans.find(x=>x.id===id);if(p)openPlanModal(p);
+}
+
+async function deletePlan(id){
+    const ok=await showConfirm('Tem certeza que deseja excluir este plano?',{title:'Excluir Plano',ok:'Excluir',danger:true});
+    if(!ok)return;
+    await fetch(`/api/admin/plans/${id}`,{method:'DELETE'});toast('Plano excluído');loadPlans();
+}
+
+document.getElementById('plan-form').addEventListener('submit',async e=>{
+    e.preventDefault();const fd=new FormData(e.target);const id=fd.get('id');
+    const mods=[];document.querySelectorAll('#plan-modules input:checked').forEach(cb=>mods.push(cb.value));
+    const body={name:fd.get('name'),plan_type:fd.get('plan_type'),daily_limit:+fd.get('daily_limit'),
+        monthly_limit:+fd.get('monthly_limit'),price:+fd.get('price'),modules:mods};
+    if(id){await fetch(`/api/admin/plans/${id}`,{method:'PUT',headers:{'Content-Type':J},body:JSON.stringify(body)})}
+    else{await fetch('/api/admin/plans',{method:'POST',headers:{'Content-Type':J},body:JSON.stringify(body)})}
+    e.target.closest('dialog').close();toast('Plano salvo');loadPlans();
+});
+
+// Providers
+async function loadProviders(){
+    const r=await fetch('/api/admin/providers');const d=await r.json();
+    document.querySelector('#providers-table tbody').innerHTML=d.map(p=>`<tr>
+        <td>${p.id}</td><td>${p.name}</td><td><code>${p.slug}</code></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${p.base_url}</td>
+        <td>${p.total_queries}</td><td><span class="badge ${p.is_active?'green':'red'}">${p.is_active?'Ativo':'Inativo'}</span></td>
+        <td><button class="btn-sm ${p.is_active?'danger':'primary'}" onclick="toggleProvider(${p.id},${!p.is_active})">${p.is_active?'Desativar':'Ativar'}</button>
+        <button class="btn-sm" onclick="testProvider(${p.id})">Testar</button>
+        <button class="btn-sm" onclick="editProvider(${p.id})">Editar</button>
+        <button class="btn-sm danger" onclick="deleteProvider(${p.id})">Excluir</button></td>
+    </tr>`).join('');
+}
+
+function openProviderModal(data){
+    const m=document.getElementById('provider-modal'),f=document.getElementById('provider-form');
+    f.reset();f.elements.id.value=data?.id||'';
+    document.getElementById('provider-auth-value').required=!data;
+    if(data){f.elements.name.value=data.name;f.elements.slug.value=data.slug;
+        f.elements.base_url.value=data.base_url;f.elements.auth_header.value=data.auth_header||'x-api-key';}
+    document.getElementById('provider-modal-title').textContent=data?'Editar Provider':'Novo Provider';
+    m.showModal();
+}
+
+async function editProvider(id){
+    const r=await fetch('/api/admin/providers');const provs=await r.json();
+    const p=provs.find(x=>x.id===id);if(p)openProviderModal(p);
+}
+
+async function deleteProvider(id){
+    const ok=await showConfirm('Tem certeza que deseja excluir este provider?',{title:'Excluir Provider',ok:'Excluir',danger:true});
+    if(!ok)return;
+    await fetch(`/api/admin/providers/${id}`,{method:'DELETE'});toast('Provider excluído');loadProviders();
+}
+
+async function toggleProvider(id,active){
+    await fetch(`/api/admin/providers/${id}`,{method:'PUT',headers:{'Content-Type':J},body:JSON.stringify({is_active:active})});
+    toast(active?'Provedor ativado':'Provedor desativado');loadProviders();
+}
+
+async function testProvider(id){
+    toast('Testando...','');
+    const r=await fetch(`/api/admin/providers/${id}/test`,{method:'POST'});const d=await r.json();
+    toast(d.ok?`OK (${d.response_time_ms}ms)`:`Falhou: ${d.message||'status '+d.status_code}`,d.ok?'success':'error');
+}
+
+document.getElementById('provider-form').addEventListener('submit',async e=>{
+    e.preventDefault();const fd=new FormData(e.target);const id=fd.get('id');
+    const body={name:fd.get('name'),slug:fd.get('slug'),base_url:fd.get('base_url'),
+        auth_header:fd.get('auth_header'),auth_value:fd.get('auth_value')};
+    if(id){await fetch(`/api/admin/providers/${id}`,{method:'PUT',headers:{'Content-Type':J},body:JSON.stringify(body)})}
+    else{await fetch('/api/admin/providers',{method:'POST',headers:{'Content-Type':J},body:JSON.stringify(body)})}
+    e.target.closest('dialog').close();toast('Provider salvo');loadProviders();
+});
+
+// Logs
+async function loadLogs(){
+    const r=await fetch('/api/logs');const d=await r.json();
+    document.querySelector('#logs-table tbody').innerHTML=d.map(l=>`<tr>
+        <td>${l.id}</td><td>${l.module||l.endpoint}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${l.query||'-'}</td>
+        <td>${l.provider||'-'}</td><td>${l.results}</td>
+        <td><span class="badge ${l.status<400?'green':'red'}">${l.status}</span></td>
+        <td>${l.time_ms}ms</td><td style="font-size:.75rem">${l.date?.replace('T',' ').slice(0,19)||'-'}</td>
+    </tr>`).join('')||'<tr><td colspan="8" class="empty-state">Nenhum log encontrado</td></tr>';
+}
+
+loadUsers();loadPlans();loadProviders();loadLogs();
+const editId=Number(new URLSearchParams(location.search).get('edit_user'));
+if(editId)location.href='/admin/user/'+editId+'?edit=1';
+</script>
+{% endblock %}

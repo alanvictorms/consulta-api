@@ -1,0 +1,9 @@
+.claude-flow/
+.claude/
+__pycache__/
+*.pyc
+instance/
+*.zip
+*.db
+DESIGN.md
+.env

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"/>
+    <title>Login · Sistema de Consultas</title>
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem("aero-theme")||"dark"}catch(e){}</script>
+    <link rel="stylesheet" href="/static/css/aero.css"/>
+    <script src="/static/js/aero.js" defer></script>
+</head>
+<body data-page="login">
+    <main class="auth-shell">
+        <section class="auth-story">
+            <a href="/" class="brand">
+                <span class="orb brand-mark">
+                    <img class="icon" src="/static/icons/magnifying-glass.svg" alt="" aria-hidden="true"/>
+                </span>
+                DataConsult</a>
+            <div class="auth-story-copy">
+                <span class="eyebrow">CONSULTAS INTELIGENTES</span>
+                <h1>Dados precisos.<br/>Resultados rápidos.</h1>
+                <p>Plataforma completa de consulta de dados cadastrais.<br/>CPF, CNPJ, Nome, Telefone e muito mais.</p>
+            </div>
+            <small>Sistema interno de consultas.</small>
+        </section>
+        <section class="auth-main">
+            <div class="auth-top">
+                <span></span>
+                <div class="theme-switch" aria-label="Tema">
+                    <button class="btn theme-light" data-theme="light" aria-label="Claro">
+                        <img class="icon" src="/static/icons/sun.svg" alt="" aria-hidden="true"/></button>
+                    <button class="btn theme-dark" data-theme="dark" aria-label="Escuro">
+                        <img class="icon" src="/static/icons/moon.svg" alt="" aria-hidden="true"/></button>
+                </div>
+            </div>
+            <div class="auth-content">
+                <span class="eyebrow">BEM-VINDO DE VOLTA</span>
+                <h1>Entrar na plataforma</h1>
+                <p>Insira suas credenciais para acessar o sistema.</p>
+                <form id="login-form">
+                    <label class="field">Usuário
+                        <input type="text" name="username" required placeholder="Usuário" autocomplete="username"/>
+                    </label>
+                    <label class="field">Senha
+                        <input type="password" name="password" required placeholder="••••••" autocomplete="current-password"/>
+                    </label>
+                    <button class="btn primary wide reverse" type="submit">
+                        <img class="icon" src="/static/icons/arrow-right.svg" alt="" aria-hidden="true"/>Entrar
+                    </button>
+                </form>
+                <div id="form-result" role="status" hidden></div>
+            </div>
+            <footer>DataConsult <span>Sistema de Consultas</span></footer>
+        </section>
+    </main>
+    <script>
+    document.getElementById('login-form').addEventListener('submit',async e=>{
+        e.preventDefault();
+        const fd=new FormData(e.target);
+        const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({username:fd.get('username'),password:fd.get('password')})});
+        const d=await r.json();
+        if(d.ok){location.href='/'}
+        else{const el=document.getElementById('form-result');el.hidden=false;el.textContent=d.error||'Erro ao entrar';el.style.color='#e74c3c'}
+    });
+    </script>
+</body>
+</html>

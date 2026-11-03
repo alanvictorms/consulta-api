@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% block title %}Documentação da API · Sistema{% endblock %}
+{% block page_id %}docs{% endblock %}
+{% block topbar_title %}Documentação da API{% endblock %}
+
+{% block content %}
+<div class="rd-page">
+    <div class="ux-head">
+        <div>
+            <span class="ux-eyebrow">DOCUMENTAÇÃO</span>
+            <h1>Integre sem complicação.</h1>
+            <p>Autenticação, endpoints, parâmetros, JSON Schema do envelope e tratamento de respostas explicados em uma sequência prática.</p>
+        </div>
+        <a class="ux-btn primary" href="/api-playground"><svg aria-hidden="true" class="rd-ico"><use href="#i-terminal"></use></svg> Testar requisição</a>
+    </div>
+
+    <div class="ux-doc-layout">
+        <aside class="ux-card ux-doc-nav" id="doc-nav"><span class="ux-eyebrow">CONTEÚDO</span></aside>
+        <div class="ux-doc-stack">
+            <section class="ux-card ux-doc-section" id="comece">
+                <span class="ux-eyebrow">INTRODUÇÃO</span>
+                <h2>Começando</h2>
+                <p>A API permite consultar os módulos disponíveis no plano por meio de requisições autenticadas. Siga esta ordem para sua primeira integração.</p>
+                <ol class="ux-doc-list">
+                    <li><div><strong>Gere uma API Key</strong>Obtenha uma chave pelo Painel API e guarde-a em local seguro.</div></li>
+                    <li><div><strong>Escolha o módulo</strong>Consulte o catálogo para obter ID e parâmetros necessários.</div></li>
+                    <li><div><strong>Envie a requisição</strong>Faça um POST para <code>/api/v1/query</code> com JSON no corpo.</div></li>
+                    <li><div><strong>Leia os dados</strong>Confira <code>success</code>, <code>data</code> e <code>meta</code> no retorno.</div></li>
+                </ol>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="base-url">
+                <span class="ux-eyebrow">CONEXÃO</span>
+                <h2>Base URL</h2>
+                <p>Use o domínio configurado no ambiente onde a aplicação está hospedada.</p>
+                <div class="ux-code">
+                    <div class="ux-codehead">
+                        <strong>URL base</strong>
+                        <button class="ux-btn" type="button" data-copy-code="basecode"><svg aria-hidden="true" class="rd-ico"><use href="#i-copy"></use></svg> Copiar</button>
+                    </div>
+                    <pre id="basecode"></pre>
+                </div>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="autenticacao">
+                <span class="ux-eyebrow">AUTENTICAÇÃO</span>
+                <h2>Autenticação e chaves</h2>
+                <p>Cada requisição deve conter uma credencial válida. O cabeçalho recomendado é <code>X-API-Key</code>. Também há suporte a Bearer Token como alternativa.</p>
+                <div class="ux-tablewrap">
+                    <table class="ux-table">
+                        <thead><tr><th>Header</th><th>Valor</th><th>Uso</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>X-API-Key</strong></td><td><code>SUA_CHAVE</code></td><td>Recomendado</td></tr>
+                            <tr><td><strong>Authorization</strong></td><td><code>Bearer SUA_CHAVE</code></td><td>Alternativo</td></tr>
+                            <tr><td><strong>Content-Type</strong></td><td><code>application/json</code></td><td>Corpo da requisição</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="ux-note" style="margin-top:1rem">Nunca exponha a chave no JavaScript público do navegador. Faça requisições autenticadas a partir de um backend seguro.</div>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="gerenciamento-chaves">
+                <span class="ux-eyebrow">AUTENTICAÇÃO</span>
+                <h2>Gerenciamento de chaves</h2>
+                <p>Crie chaves no Painel API. Para substituir uma credencial, gere outra, atualize sua aplicação e só então revogue a antiga.</p>
+                <div class="ux-list">
+                    <div class="ux-row"><span class="ux-mini-icon"><svg class="rd-ico"><use href="#i-key"></use></svg></span><div class="ux-row-body"><strong>Criar</strong><small>Painel API, Chaves de acesso, Gerar nova chave.</small></div></div>
+                    <div class="ux-row"><span class="ux-mini-icon"><svg class="rd-ico"><use href="#i-refresh"></use></svg></span><div class="ux-row-body"><strong>Rotacionar</strong><small>Ative a nova chave em seus serviços antes de revogar a antiga.</small></div></div>
+                    <div class="ux-row"><span class="ux-mini-icon"><svg class="rd-ico"><use href="#i-lock"></use></svg></span><div class="ux-row-body"><strong>Armazenar</strong><small>Mantenha credenciais em variáveis de ambiente do backend, nunca no frontend.</small></div></div>
+                </div>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="erros-autenticacao">
+                <span class="ux-eyebrow">AUTENTICAÇÃO</span>
+                <h2>Erros de autenticação</h2>
+                <p>Confira o código HTTP e o identificador de erro antes de executar uma nova tentativa.</p>
+                <div class="ux-doc-err"><b>401</b><div><strong>Chave inválida ou inativa</strong><br/><span>UNAUTHORIZED</span></div></div>
+                <div class="ux-doc-err"><b>429</b><div><strong>Limite diário atingido</strong><br/><span>RATE_LIMITED</span></div></div>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="consulta">
+                <span class="ux-eyebrow">API REFERENCE</span>
+                <h2>Endpoint de consulta</h2>
+                <p>Todas as consultas são enviadas para o mesmo endpoint. O campo <code>module</code> identifica o recurso e os demais campos variam de acordo com o módulo.</p>
+                <div class="ux-endpoint"><span class="ux-method">POST</span><code>/api/v1/query</code></div>
+                <h3>Corpo JSON</h3>
+                <div class="ux-code">
+                    <div class="ux-codehead">
+                        <strong>Exemplo de consulta</strong>
+                        <button class="ux-btn" type="button" data-copy-code="querycode"><svg aria-hidden="true" class="rd-ico"><use href="#i-copy"></use></svg> Copiar</button>
+                    </div>
+                    <pre id="querycode">{
+  "module": "cb_cpf",
+  "cpf": "00000000000"
+}</pre>
+                </div>
+                <p>O CPF é apenas um valor fictício de exemplo, não um registro consultado.</p>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="resposta">
+                <span class="ux-eyebrow">API REFERENCE</span>
+                <h2>Formato de resposta e JSON Schema</h2>
+                <p>O envelope de retorno utiliza os campos <code>success</code>, <code>data</code> e <code>meta</code>. <code>success</code> é booleano; <code>meta.time_ms</code> é inteiro; <code>meta.module</code> é string. <code>data</code> é conteúdo JSON variável devolvido pelo serviço de origem (o objeto vazio <code>{}</code> é um marcador didático, não uma amostra real ou garantia de retorno vazio).</p>
+                <div class="ux-code">
+                    <div class="ux-codehead">
+                        <strong>Envelope de resposta implementado · 200</strong>
+                        <button class="ux-btn" type="button" data-copy-code="responsecode"><svg aria-hidden="true" class="rd-ico"><use href="#i-copy"></use></svg> Copiar</button>
+                    </div>
+                    <pre id="responsecode">{
+  "success": true,
+  "data": {},
+  "meta": {
+    "time_ms": 234,
+    "module": "ID_DO_MODULO"
+  }
+}</pre>
+                </div>
+                <div class="ux-kv">
+                    <dt><code>success</code></dt><dd>boolean — Indica se a chamada ao módulo foi concluída com sucesso</dd>
+                    <dt><code>data</code></dt><dd>object | array — Conteúdo JSON variável devolvido pelo serviço de origem</dd>
+                    <dt><code>meta.time_ms</code></dt><dd>integer — Tempo de execução em milissegundos</dd>
+                    <dt><code>meta.module</code></dt><dd>string — Identificador do módulo executado</dd>
+                </div>
+                <div class="ux-code" style="margin-top:.85rem">
+                    <div class="ux-codehead">
+                        <strong>JSON Schema do Envelope</strong>
+                        <button class="ux-btn" type="button" data-copy-code="schemacode"><svg aria-hidden="true" class="rd-ico"><use href="#i-copy"></use></svg> Copiar</button>
+                    </div>
+                    <pre id="schemacode">{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["success", "data", "meta"],
+  "properties": {
+    "success": { "type": "boolean" },
+    "data": { "type": ["object", "array", "null"] },
+    "meta": {
+      "type": "object",
+      "required": ["time_ms", "module"],
+      "properties": {
+        "time_ms": { "type": "integer" },
+        "module": { "type": "string" }
+      }
+    }
+  }
+}</pre>
+                </div>
+                <div class="ux-note" style="margin-top:.85rem">
+                    <strong>Limitação de schema dos provedores:</strong> A aplicação não normaliza os campos internos de <code>data</code> nem mantém um schema validado por módulo. A documentação descreve o envelope efetivamente implementado e explicita essa variabilidade.
+                </div>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="modulos">
+                <span class="ux-eyebrow">MÓDULOS</span>
+                <h2>Listar módulos</h2>
+                <p>Recupere os módulos autorizados para sua conta usando o endpoint de listagem.</p>
+                <div class="ux-endpoint"><span class="ux-method">GET</span><code>/api/v1/modules</code></div>
+                <p>O retorno contém informações como ID, nome, categoria, provedor e parâmetros. Para explorar a prévia visual, utilize o catálogo.</p>
+                <a class="ux-btn" href="/api-modulos"><svg aria-hidden="true" class="rd-ico"><use href="#i-grid"></use></svg> Abrir catálogo de módulos</a>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="catalogo-modulos">
+                <span class="ux-eyebrow">MÓDULOS ({{ modules|length }} DISPONÍVEIS)</span>
+                <h2>Conteúdo por módulo</h2>
+                <p>Cada módulo abaixo apresenta Nome, ID, descrição, parâmetros com indicação de obrigatoriedade, exemplo de Request, exemplo do Envelope de Response e referência de erro.</p>
+                <div style="margin:1rem 0">
+                    <label class="ux-searchbox">
+                        <svg aria-hidden="true" class="rd-ico"><use href="#i-search"></use></svg>
+                        <input id="doc-mod-search" type="search" placeholder="Filtrar módulos documentados por nome, ID ou categoria..."/>
+                    </label>
+                </div>
+                <div id="doc-modules-list" style="display:grid;gap:.85rem">
+                    {% for m in modules %}
+                    <details class="ux-card pad inset doc-mod-item" data-search="{{ (m.label ~ ' ' ~ m.id ~ ' ' ~ m.category ~ ' ' ~ m.description)|lower }}">
+                        <summary style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:.75rem;list-style:none">
+                            <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+                                <span class="ux-pill accent">{{ m.category }}</span>
+                                <strong style="font-size:.88rem;color:var(--text)">{{ m.label }}</strong>
+                                <code>{{ m.id }}</code>
+                            </div>
+                            <span style="font-size:.73rem;color:var(--muted)">{{ m.params|length }} parâmetro(s) ▾</span>
+                        </summary>
+                        <div style="margin-top:.85rem;padding-top:.85rem;border-top:1px solid var(--line)">
+                            <p style="margin-bottom:.75rem">{{ m.description }}</p>
+                            <h3 style="font-size:.78rem;margin:.5rem 0">Parâmetros</h3>
+                            <div class="ux-tablewrap" style="margin-bottom:.85rem">
+                                <table class="ux-table">
+                                    <thead><tr><th>Parâmetro</th><th>Tipo</th><th>Obrigatoriedade</th></tr></thead>
+                                    <tbody>
+                                        {% for p in m.params %}
+                                        <tr>
+                                            <td><code>{{ p.name }}</code></td>
+                                            <td><code>string</code></td>
+                                            <td>{% if p.required %}<span class="ux-pill accent">Obrigatório</span>{% else %}<span class="ux-pill">Opcional</span>{% endif %}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="ux-grid">
+                                <div class="ux-code">
+                                    <div class="ux-codehead"><strong>Request · POST /api/v1/query</strong></div>
+                                    <pre>POST /api/v1/query
+X-API-Key: SUA_CHAVE
+Content-Type: application/json
+
+{
+  "module": "{{ m.id }}"{% for p in m.params %},
+  "{{ p.name }}": "{{ 'VALOR_OBRIGATORIO' if p.required else 'VALOR_OPCIONAL' }}"{% endfor %}
+}</pre>
+                                </div>
+                                <div class="ux-code">
+                                    <div class="ux-codehead"><strong>Response Envelope · 200 OK</strong></div>
+                                    <pre>{
+  "success": true,
+  "data": {},
+  "meta": {
+    "time_ms": 234,
+    "module": "{{ m.id }}"
+  }
+}</pre>
+                                </div>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-top:.75rem">
+                                <small class="ux-muted">Erros: <code>400 MISSING_PARAMS</code> · <code>401 UNAUTHORIZED</code> · <code>403 FORBIDDEN</code> · <code>429 RATE_LIMITED</code> · <code>503 SERVICE_UNAVAILABLE</code></small>
+                                <a class="ux-btn primary" href="/api-playground?module={{ m.id }}"><svg class="rd-ico" aria-hidden="true"><use href="#i-terminal"></use></svg> Testar no Playground</a>
+                            </div>
+                        </div>
+                    </details>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="codigo">
+                <span class="ux-eyebrow">EXEMPLOS</span>
+                <h2>Exemplos de código</h2>
+                <p>Selecione o exemplo desejado. A URL e a credencial são substituídas na integração real.</p>
+                <div class="ux-tabs" id="docs-lang-tabs">
+                    <button class="ux-tab active" type="button" data-language="curl">cURL</button>
+                    <button class="ux-tab" type="button" data-language="javascript">JavaScript</button>
+                    <button class="ux-tab" type="button" data-language="python">Python</button>
+                    <button class="ux-tab" type="button" data-language="php">PHP</button>
+                </div>
+                <div class="ux-code">
+                    <div class="ux-codehead">
+                        <strong id="docs-code-title">Exemplo cURL</strong>
+                        <button class="ux-btn" type="button" data-copy-code="docs-code"><svg aria-hidden="true" class="rd-ico"><use href="#i-copy"></use></svg> Copiar</button>
+                    </div>
+                    <pre id="docs-code"></pre>
+                </div>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="dicas">
+                <span class="ux-eyebrow">INTEGRAÇÃO</span>
+                <h2>Dicas de integração</h2>
+                <div class="ux-list">
+                    <div class="ux-row"><div class="ux-row-body"><strong>Repetição controlada</strong><small>Para erro temporário 503, aguarde 2 segundos antes de tentar novamente, com máximo de 3 tentativas.</small></div></div>
+                    <div class="ux-row"><div class="ux-row-body"><strong>Timeout</strong><small>Recomendamos 30 segundos de timeout; consultas complexas (como CNPJ + Titular) podem demorar até 20 segundos.</small></div></div>
+                    <div class="ux-row"><div class="ux-row-body"><strong>Cache</strong><small>Evite repetir consultas idênticas desnecessariamente; considere cache com validade adequada ao dado.</small></div></div>
+                </div>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="erros">
+                <span class="ux-eyebrow">REFERÊNCIA</span>
+                <h2>Erros e respostas HTTP</h2>
+                <p>Quando uma chamada falha, o retorno contém um objeto JSON com <code>error</code> e <code>code</code>:</p>
+                <div class="ux-code" style="margin-bottom:1rem">
+                    <div class="ux-codehead"><strong>Estrutura de Erro</strong></div>
+                    <pre>{
+  "error": "Parâmetros obrigatórios: cpf",
+  "code": "MISSING_PARAMS"
+}</pre>
+                </div>
+                <div class="ux-doc-err"><b>400</b><div><strong>Requisição inválida</strong><br/><span>MISSING_MODULE, INVALID_MODULE, MISSING_PARAMS</span></div></div>
+                <div class="ux-doc-err"><b>401</b><div><strong>Sem autorização</strong><br/><span>UNAUTHORIZED</span></div></div>
+                <div class="ux-doc-err"><b>403</b><div><strong>Sem permissão</strong><br/><span>FORBIDDEN</span></div></div>
+                <div class="ux-doc-err"><b>429</b><div><strong>Limite de uso</strong><br/><span>RATE_LIMITED</span></div></div>
+                <div class="ux-doc-err"><b>500</b><div><strong>Erro no servidor</strong><br/><span>INTERNAL_ERROR</span></div></div>
+                <div class="ux-doc-err"><b>503</b><div><strong>Serviço indisponível</strong><br/><span>SERVICE_UNAVAILABLE</span></div></div>
+            </section>
+
+            <section class="ux-card ux-doc-section" id="praticas">
+                <span class="ux-eyebrow">BOAS PRÁTICAS</span>
+                <h2>Tratamento de erros</h2>
+                <p>Valide parâmetros antes do envio, mantenha as credenciais no backend e trate respostas HTTP inesperadas. Em instabilidades temporárias, implemente novas tentativas com intervalo progressivo, evitando repetição imediata.</p>
+                <div class="ux-note">Se o erro for de autenticação, permissão ou parâmetros, corrija a causa antes de tentar novamente. Para respostas com limite de uso, respeite a janela definida pelo servidor.</div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(()=>{
+    const origin = window.location.origin;
+    document.getElementById('basecode').textContent = origin + '/api/v1/';
+    const links=[
+        ['comece','Começando'],
+        ['base-url','Base URL'],
+        ['autenticacao','Autenticação'],
+        ['gerenciamento-chaves','Gerenciamento de Chaves'],
+        ['erros-autenticacao','Erros de Autenticação'],
+        ['consulta','Endpoint de Consulta'],
+        ['resposta','Formato de Resposta'],
+        ['modulos','Listar Módulos'],
+        ['catalogo-modulos','Módulos Disponíveis'],
+        ['codigo','Exemplos de Código'],
+        ['dicas','Dicas de Integração'],
+        ['erros','Códigos de Erro'],
+        ['praticas','Tratamento de Erros']
+    ];
+    document.getElementById('doc-nav').insertAdjacentHTML('beforeend',links.map(([id,title],i)=>`<a href="#${id}" class="${i===0?'active':''}">${title}</a>`).join(''));
+    document.querySelectorAll('#doc-nav a').forEach(a=>a.addEventListener('click',()=>{
+        document.querySelectorAll('#doc-nav a').forEach(b=>b.classList.remove('active'));
+        a.classList.add('active');
+    }));
+
+    const codes={
+        curl:`curl -X POST "${origin}/api/v1/query" \\\n  -H "X-API-Key: SUA_CHAVE" \\\n  -H "Content-Type: application/json" \\\n  -d '{"module":"cb_cpf","cpf":"00000000000"}'`,
+        javascript:`const response = await fetch('${origin}/api/v1/query', {\n  method: 'POST',\n  headers: {\n    'X-API-Key': 'SUA_CHAVE',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({ module: 'cb_cpf', cpf: '00000000000' })\n});\nconst result = await response.json();`,
+        python:`import requests\nresponse = requests.post(\n  '${origin}/api/v1/query',\n  headers={'X-API-Key': 'SUA_CHAVE'},\n  json={'module': 'cb_cpf', 'cpf': '00000000000'}\n)\nprint(response.json())`,
+        php:`<?php\n$ch = curl_init('${origin}/api/v1/query');\ncurl_setopt_array($ch, [\n  CURLOPT_RETURNTRANSFER => true,\n  CURLOPT_POST => true,\n  CURLOPT_HTTPHEADER => ['X-API-Key: SUA_CHAVE', 'Content-Type: application/json'],\n  CURLOPT_POSTFIELDS => json_encode(['module' => 'cb_cpf', 'cpf' => '00000000000'])\n]);\n$result = curl_exec($ch);\ncurl_close($ch);`
+    };
+    const codeEl=document.getElementById('docs-code');
+    function setLang(lang){
+        codeEl.textContent=codes[lang];
+        document.getElementById('docs-code-title').textContent='Exemplo '+lang;
+        document.querySelectorAll('[data-language]').forEach(e=>e.classList.toggle('active',e.dataset.language===lang));
+    }
+    setLang('curl');
+    document.getElementById('docs-lang-tabs').addEventListener('click',e=>{
+        const b=e.target.closest('[data-language]');
+        if(b)setLang(b.dataset.language);
+    });
+    document.querySelectorAll('[data-copy-code]').forEach(b=>b.addEventListener('click',()=>{
+        window.uiCopy(document.getElementById(b.dataset.copyCode).textContent);
+    }));
+    const searchInput = document.getElementById('doc-mod-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            const q = searchInput.value.trim().toLowerCase();
+            document.querySelectorAll('.doc-mod-item').forEach(el => {
+                const match = !q || (el.dataset.search || '').includes(q);
+                el.style.display = match ? '' : 'none';
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

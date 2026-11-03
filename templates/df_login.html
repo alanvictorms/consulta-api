@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DataFlow — Login</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
+<style>
+:root{--bg:#06080d;--card:#111827;--card2:#1a2234;--accent:#6366f1;--accent2:#818cf8;--glow:rgba(99,102,241,.15);--green:#22c55e;--red:#ef4444;--txt:#e2e8f0;--txt2:#94a3b8;--txt3:#64748b;--border:#1e293b;--border2:#334155;--input:#0f172a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:'Inter','Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.login-wrapper{width:100%;max-width:420px;padding:1.5rem}
+.brand{text-align:center;margin-bottom:2rem}
+.brand .icon{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--accent),#7c3aed);display:inline-flex;align-items:center;justify-content:center;font-size:1.5rem;color:#fff;margin-bottom:.75rem}
+.brand h1{font-size:1.5rem;font-weight:700;letter-spacing:-.03em}
+.brand p{color:var(--txt3);font-size:.85rem;margin-top:.25rem}
+.login-card{background:var(--card);border:1px solid var(--border);border-radius:1rem;padding:2rem;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.field{margin-bottom:1.25rem}
+.field label{display:block;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--txt3);margin-bottom:.4rem}
+.field .input-wrap{display:flex;align-items:center;background:var(--input);border:1px solid var(--border2);border-radius:.625rem;transition:.2s}
+.field .input-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}
+.field .input-wrap i{padding:0 .25rem 0 .85rem;color:var(--txt3);font-size:1rem}
+.field .input-wrap input{flex:1;background:none;border:none;color:var(--txt);padding:.7rem .75rem;font-size:.9rem;outline:none}
+.field .input-wrap input::placeholder{color:var(--txt3)}
+.field .toggle-pw{background:none;border:none;color:var(--txt3);cursor:pointer;padding:0 .85rem;font-size:1rem}
+.field .toggle-pw:hover{color:var(--txt)}
+.btn-login{width:100%;background:linear-gradient(135deg,var(--accent),#7c3aed);border:none;color:#fff;padding:.75rem;border-radius:.625rem;font-size:.95rem;font-weight:600;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:.5rem}
+.btn-login:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(99,102,241,.35)}
+.btn-login:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+.error-msg{display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:.5rem;padding:.6rem .85rem;font-size:.82rem;color:var(--red);margin-bottom:1rem;align-items:center;gap:.5rem}
+.error-msg.show{display:flex}
+.spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.footer{text-align:center;margin-top:1.5rem;font-size:.72rem;color:var(--txt3)}
+</style>
+</head>
+<body>
+<div class="login-wrapper">
+  <div class="brand">
+    <div class="icon"><i class="bi bi-database"></i></div>
+    <h1>DataFlow Console</h1>
+    <p>Painel de consulta cadastral</p>
+  </div>
+  <div class="login-card">
+    <div class="error-msg" id="errorMsg"><i class="bi bi-exclamation-triangle"></i> <span id="errorText"></span></div>
+    <div class="field">
+      <label>Usuario</label>
+      <div class="input-wrap">
+        <i class="bi bi-person"></i>
+        <input type="text" id="username" placeholder="Usuário" autocomplete="username" autofocus>
+      </div>
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <div class="input-wrap">
+        <i class="bi bi-lock"></i>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+        <button class="toggle-pw" type="button" onclick="togglePw()"><i class="bi bi-eye" id="eyeIcon"></i></button>
+      </div>
+    </div>
+    <button class="btn-login" id="btnLogin" onclick="doLogin()">
+      <i class="bi bi-box-arrow-in-right"></i> Entrar
+    </button>
+  </div>
+  <div class="footer">DataFlow Console &copy; 2026</div>
+</div>
+<script>
+function togglePw(){
+  const inp=document.getElementById('password');
+  const ico=document.getElementById('eyeIcon');
+  if(inp.type==='password'){inp.type='text';ico.className='bi bi-eye-slash'}
+  else{inp.type='password';ico.className='bi bi-eye'}
+}
+function doLogin(){
+  const u=document.getElementById('username').value.trim();
+  const p=document.getElementById('password').value;
+  if(!u||!p){showErr('Preencha usuario e senha');return}
+  const btn=document.getElementById('btnLogin');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Entrando...';
+  hideErr();
+  fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})})
+  .then(r=>r.json().then(d=>({ok:r.ok,data:d})))
+  .then(({ok,data})=>{
+    btn.disabled=false;btn.innerHTML='<i class="bi bi-box-arrow-in-right"></i> Entrar';
+    if(!ok){showErr(data.error||'Erro ao entrar');return}
+    window.location.href='/';
+  })
+  .catch(()=>{btn.disabled=false;btn.innerHTML='<i class="bi bi-box-arrow-in-right"></i> Entrar';showErr('Erro de conexao')});
+}
+function showErr(m){const e=document.getElementById('errorMsg');e.classList.add('show');document.getElementById('errorText').textContent=m}
+function hideErr(){document.getElementById('errorMsg').classList.remove('show')}
+document.getElementById('password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+document.getElementById('username').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('password').focus()});
+</script>
+</body>
+</html>

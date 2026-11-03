@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}API · Sistema{% endblock %}
+{% block page_id %}api{% endblock %}
+{% block topbar_title %}Painel API{% endblock %}
+{% block content %}
+<div class="rd-page">
+<div class="ux-head"><div><span class="ux-eyebrow">INTEGRAÇÕES</span><h1>Gerencie sua API.</h1><p>Chaves, endpoints e acesso aos recursos de consulta com uma interface mais simples.</p></div><a href="/docs" class="ux-btn"><svg class="rd-ico" aria-hidden="true"><use href="#i-book"></use></svg> Documentação</a></div>
+
+<div class="ux-grid three ux-gap">
+<div class="ux-stat"><div class="ux-iconbox"><svg class="rd-ico" aria-hidden="true"><use href="#i-key"></use></svg></div><div><span>Chaves cadastradas</span><strong id="stat-keys">{{ keys|length }}</strong></div></div>
+<div class="ux-stat"><div class="ux-iconbox"><svg class="rd-ico" aria-hidden="true"><use href="#i-grid"></use></svg></div><div><span>Módulos disponíveis</span><strong>{{ modules|length }}</strong></div></div>
+<div class="ux-stat"><div class="ux-iconbox"><svg class="rd-ico" aria-hidden="true"><use href="#i-database"></use></svg></div><div><span>Plano</span><strong class="small">{{ user.plan.name if user.plan else 'Nenhum' }}</strong></div></div>
+</div>
+
+<section class="ux-card pad ux-gap">
+<div class="ux-keys-head"><div><h2 style="font-size:1.05rem">Chaves de acesso</h2><p class="ux-muted">Identifique e administre credenciais de integração.</p></div><button class="ux-btn primary" id="api-new-key" onclick="createKey()"><svg class="rd-ico" aria-hidden="true"><use href="#i-key"></use></svg> Gerar nova chave</button></div>
+<div id="keys-list"></div>
+</section>
+
+<section class="ux-card pad ux-gap">
+<div class="ux-section-head"><div><h2><svg class="rd-ico" aria-hidden="true"><use href="#i-terminal"></use></svg> Comece uma integração</h2><p>Três passos para enviar uma requisição autenticada.</p></div></div>
+<div class="ux-steps">
+<div class="ux-step"><span class="ux-pill accent">ETAPA 01</span><strong>Crie uma chave</strong><p>Use a área de chaves para obter uma credencial válida.</p></div>
+<div class="ux-step"><span class="ux-pill accent">ETAPA 02</span><strong>Escolha um módulo</strong><p>Consulte os parâmetros do endpoint no catálogo da API.</p></div>
+<div class="ux-step"><span class="ux-pill accent">ETAPA 03</span><strong>Teste a requisição</strong><p>Monte o JSON e valide no Playground.</p></div>
+</div>
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem">
+<a class="ux-btn primary" href="/api-playground"><svg class="rd-ico" aria-hidden="true"><use href="#i-terminal"></use></svg> Abrir Playground</a>
+<a class="ux-btn" href="/api-modulos"><svg class="rd-ico" aria-hidden="true"><use href="#i-grid"></use></svg> Ver módulos da API</a>
+</div>
+</section>
+
+<section class="ux-card pad">
+<div class="ux-section-head"><div><h2><svg class="rd-ico" aria-hidden="true"><use href="#i-clock"></use></svg> Histórico de uso</h2><p>Atividade recente da API.</p></div></div>
+<div class="ux-tablewrap"><table class="ux-table" id="usage-table"><thead><tr><th>Data</th><th>Módulo</th><th>Método</th><th>Status</th><th>Duração</th></tr></thead><tbody></tbody></table></div>
+</section>
+</div>
+{% endblock %}
+{% block dialogs %}
+<dialog class="modal" id="key-password-dialog" aria-labelledby="key-password-title"><h3 id="key-password-title">Exibir chave de API</h3><p style="font-size:.85rem;margin-bottom:1rem">Confirme sua senha para visualizar a chave por 60 segundos.</p><form id="key-password-form"><div class="field"><label for="key-password">Sua senha</label><input id="key-password" name="password" type="password" autocomplete="current-password" required/></div><p id="key-password-error" role="alert"></p><div class="modal-actions"><button class="btn-sm" type="button" onclick="document.getElementById('key-password-dialog').close()">Cancelar</button><button class="btn-sm primary" type="submit">Confirmar e exibir</button></div></form></dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+const J='application/json';
+const ADMIN_ACCESS={{ (user.role == 'admin' or session.get('admin_user_id') is not none)|tojson }};
+let pendingKey=null;
+const revealedKeys=new Map();
+function requestReveal(id){
+ pendingKey=id;if(ADMIN_ACCESS){revealKey('');return;}
+ document.getElementById('key-password-form').reset();document.getElementById('key-password-error').textContent='';document.getElementById('key-password-dialog').showModal();
+}
+async function revealKey(password){
+ const id=pendingKey,button=document.querySelector('#key-password-form button[type=submit]');button.disabled=true;
+ try{const r=await fetch(`/api/keys/${id}/reveal`,{method:'POST',headers:{'Content-Type':J},body:JSON.stringify({password})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Não foi possível exibir a chave.');
+ revealedKeys.set(id,d.key);document.getElementById('key-value-'+id).textContent=d.key;document.getElementById('key-password-dialog').close();
+ setTimeout(()=>{revealedKeys.delete(id);loadKeys()},60000);
+ }catch(error){if(ADMIN_ACCESS)toast(error.message,'error');else document.getElementById('key-password-error').textContent=error.message;}finally{button.disabled=false;document.getElementById('key-password').value='';}
+}
+document.getElementById('key-password-form').addEventListener('submit',e=>{e.preventDefault();revealKey(document.getElementById('key-password').value)});
+
+async function loadKeys(){
+    const r=await fetch('/api/keys');const d=await r.json();
+    document.getElementById('stat-keys').textContent=d.length;
+    document.getElementById('keys-list').innerHTML=d.length?d.map(k=>`
+        <div class="ux-key-row"><div class="ux-mini-icon"><svg class="rd-ico" aria-hidden="true"><use href="#i-key"></use></svg></div>
+        <div class="ux-key-core"><h3>${k.label}</h3><p>Criada em ${(k.created_at||'').replace('T',' ').slice(0,10)} · Requests: ${k.total_requests}${k.last_used?' · Último uso: '+k.last_used.replace('T',' ').slice(0,19):''}</p>
+        <span class="ux-key-fingerprint" id="key-value-${k.id}">${k.key}</span></div>
+        <div class="ux-key-actions"><button class="ux-btn" onclick="requestReveal(${k.id})"><svg class="rd-ico" aria-hidden="true"><use href="#i-eye"></use></svg> Exibir</button>
+        <button class="ux-btn" onclick="copyKey(${k.id})"><svg class="rd-ico" aria-hidden="true"><use href="#i-copy"></use></svg> Copiar</button>
+        <button class="ux-btn" onclick="revokeKey(${k.id})">Revogar</button></div></div>`).join(''):'<div class="ux-empty">Nenhuma API key. Gere uma para começar.</div>';
+}
+async function copyKey(id){const key=revealedKeys.get(id);if(!key){requestReveal(id);return;}try{await navigator.clipboard.writeText(key);toast('Chave copiada!')}catch{toast('Não foi possível copiar.','error')}}
+async function createKey(){
+    const label=await showPrompt('Nova API Key','Dê um nome para identificar esta chave:',{placeholder:'Ex: Minha API Key',defaultValue:'Minha API Key',ok:'Gerar Key'});if(!label)return;
+    const r=await fetch('/api/keys',{method:'POST',headers:{'Content-Type':J},body:JSON.stringify({label})});const d=await r.json();
+    if(d.ok){toast('Key gerada!');loadKeys()}else{toast(d.error,'error')}
+}
+async function revokeKey(id){
+    const ok=await showConfirm('Tem certeza que deseja revogar esta key?',{title:'Revogar API Key',ok:'Revogar',danger:true});if(!ok)return;
+    await fetch(`/api/keys/${id}`,{method:'DELETE'});toast('Key revogada');loadKeys();
+}
+async function loadUsage(){
+    const r=await fetch('/api/logs');const d=await r.json();
+    document.querySelector('#usage-table tbody').innerHTML=d.slice(0,50).map(l=>`<tr>
+        <td style="font-size:.75rem">${(l.date||'').replace('T',' ').slice(0,19)}</td><td><strong>${l.module||l.endpoint}</strong></td>
+        <td>POST</td><td><span class="ux-pill ${l.status<400?'accent':''}">${l.status}</span></td><td>${l.time_ms}ms</td>
+    </tr>`).join('')||'<tr><td colspan="5" class="ux-empty">Nenhum uso registrado</td></tr>';
+}
+loadKeys();loadUsage();
+</script>
+{% endblock %}

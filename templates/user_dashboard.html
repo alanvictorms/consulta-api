@@ -1,0 +1,1734 @@
+{% extends "base.html" %}
+{% block title %}Painel de Consultas · DataConsult{% endblock %}
+{% block page_id %}consulta{% endblock %}
+{% block topbar_title %}Painel de Consultas{% endblock %}
+
+{% block content %}
+<!-- VIEW 1: CATÁLOGO DE MÓDULOS (consultas.html) -->
+<div class="rd-page" id="view-catalog">
+    <div class="ux-head">
+        <div>
+            <span class="ux-eyebrow">CONSULTAS</span>
+            <h1>Encontre a consulta certa.</h1>
+            <p>Módulos organizados por finalidade, com os parâmetros necessários antes de iniciar uma pesquisa.</p>
+        </div>
+        <span class="ux-pill accent">{{ modules|length }} módulos liberados</span>
+    </div>
+
+    <section class="ux-card pad ux-gap">
+        <div class="ux-section-head">
+            <div>
+                <h2>Buscar módulo</h2>
+                <p>Filtre por nome, categoria ou identificação.</p>
+            </div>
+            <span class="ux-pill" id="catalog-total"></span>
+        </div>
+        <div style="display:flex;gap:.65rem;flex-wrap:wrap">
+            <label class="ux-searchbox">
+                <svg aria-hidden="true" class="rd-ico"><use href="#i-search"></use></svg>
+                <input id="catalog-search" placeholder="Ex.: CPF, Telefone, CNPJ + Titular, Nome + Cidade, CEP..." type="search"/>
+            </label>
+            <button class="ux-btn" id="catalog-clear" type="button">
+                <svg aria-hidden="true" class="rd-ico"><use href="#i-refresh"></use></svg> Limpar
+            </button>
+        </div>
+    </section>
+
+    <div class="ux-filters" id="catalog-filters">
+        <button type="button" class="ux-filter active" data-category="Todos" aria-pressed="true">Todos <span class="ux-count">{{ modules|length }}</span></button>
+        {% for c in categories %}
+        <button type="button" class="ux-filter" data-category="{{ c }}" aria-pressed="false">{{ c }}</button>
+        {% endfor %}
+    </div>
+    <div class="ux-grid three" id="catalog-list">
+        {% for m in modules %}
+        <article class="ux-card ux-module" style="cursor:pointer" data-open="{{ loop.index0 }}">
+            <div class="ux-module-top">
+                <span class="ux-mini-icon"><svg class="rd-ico" aria-hidden="true"><use href="#i-{{ m.icon or 'file' }}"></use></svg></span>
+                <span class="ux-pill">{{ m.category }}</span>
+            </div>
+            <h3>{{ m.label }}</h3>
+            <p>{{ m.description }}</p>
+            <div class="ux-module-foot">
+                <span>{{ m.params|length }} parâmetro(s)</span>
+                <button type="button" data-open="{{ loop.index0 }}">Consultar <svg class="rd-ico" aria-hidden="true"><use href="#i-arrow"></use></svg></button>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    <div class="ux-card ux-empty ux-hidden" id="catalog-empty">Nenhum módulo corresponde aos filtros.</div>
+
+    <!-- Histórico recente de consultas do usuário -->
+    <section class="ux-card pad ux-gap" style="margin-top:1.4rem">
+        <div class="ux-section-head">
+            <div>
+                <h2><svg aria-hidden="true" class="rd-ico"><use href="#i-clock"></use></svg> Consultas recentes</h2>
+                <p>Reabra resultados anteriores sem consumir novos créditos.</p>
+            </div>
+            <button type="button" class="ux-btn" onclick="loadRecentLogs()">
+                <svg aria-hidden="true" class="rd-ico"><use href="#i-refresh"></use></svg> Atualizar
+            </button>
+        </div>
+        <div class="ux-tablewrap">
+            <table class="ux-table" id="recent-logs-table">
+                <thead><tr><th>Data</th><th>Módulo</th><th>Parâmetro Consultado</th><th>Resultados</th><th>Tempo</th><th>Ação</th></tr></thead>
+                <tbody id="recent-logs-tbody">
+                    <tr><td colspan="6" class="ux-empty">Carregando histórico...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<!-- VIEW 2: TELA DE CONSULTA E RELATÓRIO ESTRUTURADO (consulta_cpf_redesenhada / consulta_cnpj_redesenhada / consulta_resultados) -->
+<div class="rd-page ux-hidden" id="view-consultation">
+    <button class="rd-link" id="rd-back" type="button">
+        <svg class="rd-ico"><use href="#i-arrow-left"></use></svg> Voltar aos módulos
+    </button>
+
+    <section aria-label="Módulo de consulta" class="rd-module cpf-module" id="rd-module-banner">
+        <div class="rd-module-icon" id="rd-mod-icon">
+            <svg class="rd-ico"><use href="#i-search"></use></svg>
+        </div>
+        <div>
+            <span class="rd-eyebrow" id="rd-mod-eyebrow">MÓDULO DE CONSULTA</span>
+            <h1 id="rd-mod-title">Consulta</h1>
+            <p id="rd-mod-desc">Informe os parâmetros abaixo para realizar a consulta.</p>
+        </div>
+        <span class="rd-module-badge" id="rd-mod-badge">Consulta cadastral</span>
+    </section>
+
+    <form class="rd-panel rd-form" id="rd-form">
+        <div id="rd-form-fields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.85rem"></div>
+        <div class="rd-validation" id="rd-validation">Preencha os campos obrigatórios para iniciar a pesquisa.</div>
+        <button class="rd-action-primary" id="rd-submit-btn" type="submit">
+            <svg class="rd-ico"><use href="#i-search"></use></svg> <span id="rd-submit-text">Consultar</span>
+        </button>
+    </form>
+
+    <section aria-labelledby="rd-field-heading" class="rd-panel rd-fields" id="rd-fields-box">
+        <div class="rd-fields-head">
+            <div>
+                <h2 id="rd-field-heading">
+                    <svg class="rd-ico" style="width:15px;height:15px;color:var(--primary)"><use href="#i-list"></use></svg>
+                    Informações estruturadas <span class="rd-tag" style="margin-left:.3rem">Relatório organizado</span>
+                </h2>
+                <small>Os dados retornados pelo provedor são distribuídos automaticamente em seções navegáveis.</small>
+            </div>
+            <button aria-expanded="false" class="rd-inline-toggle" id="rd-toggle-fields" type="button">
+                Ver seções <svg class="rd-ico" style="width:14px;height:14px"><use href="#i-chevron"></use></svg>
+            </button>
+        </div>
+        <div class="rd-field-chips rd-hide" id="rd-field-chips">
+            <span class="rd-tag">Identificação</span>
+            <span class="rd-tag">Documentos</span>
+            <span class="rd-tag">Situação cadastral</span>
+            <span class="rd-tag">Telefones</span>
+            <span class="rd-tag">E-mails</span>
+            <span class="rd-tag">Endereços</span>
+            <span class="rd-tag">Atividade e renda</span>
+            <span class="rd-tag">Empresas e QSA</span>
+            <span class="rd-tag">Veículos e Fotos</span>
+        </div>
+    </section>
+
+    <!-- Container onde o relatório estruturado (CPF, CNPJ+Titular ou Geral) é renderizado -->
+    <div id="rd-results-mount"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    'use strict';
+    const uiMods = ({{ modules|tojson }}).map((m, i) => ({
+        ...m,
+        idx: i,
+        icon: m.icon || 'file',
+        verified: true
+    }));
+    const MODS_BY_ID = {};
+    uiMods.forEach(m => { MODS_BY_ID[m.id] = m; });
+    const ESTADOS = {{ estados|tojson }};
+
+    const $ = id => document.getElementById(id);
+    const esc = window.uiEscape || (s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+    const ico = window.uiIcons || ((id, cls='') => `<svg class="rd-ico ${cls}" aria-hidden="true"><use href="#i-${id}"></use></svg>`);
+    window.uiEscape = esc;
+    window.uiIcons = ico;
+
+    let currentGroup = 'Todos';
+    let activeMod = null;
+    let lastPayload = null;
+
+    // ── Helpers de Formatação e Imagem ──────────────────────────────
+    const blank = v => v === null || v === undefined || v === '' || v === '[empty]' || (Array.isArray(v) && !v.length);
+    const digits = v => String(v || '').replace(/\D/g, '');
+    const fmtCpf = v => {
+        const s = digits(v);
+        return s.length === 11 ? s.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4') : String(v || '');
+    };
+    const fmtCnpj = v => {
+        const s = digits(v);
+        return s.length === 14 ? s.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : String(v || '');
+    };
+    const fmtDate = v => {
+        if (blank(v)) return 'Não informado';
+        const s = String(v).trim();
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
+    };
+    const money = v => {
+        if (blank(v)) return 'Não informado';
+        const num = typeof v === 'number' ? v : Number(String(v).replace(/\./g, '').replace(',', '.'));
+        return Number.isFinite(num) ? num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : String(v);
+    };
+    const initials = name => String(name || 'C').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'C';
+
+    function isImageKey(key) {
+        return /foto|photo|imagem|image|avatar|assinatura|selfie|rosto|face/i.test(String(key || ''));
+    }
+
+    function isImageValue(val, key = '') {
+        if (typeof val !== 'string') return false;
+        const s = val.trim();
+        if (!s || s.length < 8) return false;
+        if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(s)) return true;
+        if (/^https?:\/\/[^\s]+\.(png|jpe?g|gif|webp|svg|bmp)(\?.*)?$/i.test(s)) return true;
+        if (isImageKey(key) && (/^https?:\/\//i.test(s) || s.startsWith('/'))) return true;
+        if (isImageKey(key) && s.length > 120 && /^[A-Za-z0-9+/=\r\n]+$/.test(s)) return true;
+        return false;
+    }
+
+    function toImageSrc(val) {
+        const s = String(val || '').trim();
+        if (/^https?:\/\//i.test(s) || s.startsWith('/') || /^data:image\//i.test(s)) return s;
+        if (s.startsWith('<svg')) return 'data:image/svg+xml;utf8,' + encodeURIComponent(s);
+        return 'data:image/jpeg;base64,' + s.replace(/\s+/g, '');
+    }
+
+    /**
+     * Collects all images from a record, strictly preferring URL links over Base64
+     * as requested by the user ("Sempre que qualquer conteúdo dispuser de link, prefiro utilizar eles para poder importar a imagem... Evite usar a base 64").
+     */
+    function extractRecordImages(obj) {
+        if (!obj || typeof obj !== 'object') return [];
+        const urlImages = [];
+        const base64Images = [];
+        const seen = new Set();
+
+        function addImg(val, label, isUrl) {
+            const src = toImageSrc(val);
+            if (seen.has(src)) return;
+            seen.add(src);
+            if (isUrl) urlImages.push({ src, label });
+            else base64Images.push({ src, label });
+        }
+
+        function scan(o, prefix = '') {
+            if (!o || typeof o !== 'object') return;
+            if (Array.isArray(o)) {
+                o.forEach((item, idx) => {
+                    if (typeof item === 'string' && isImageValue(item, prefix)) {
+                        const isUrl = /^https?:\/\//i.test(item.trim()) || item.trim().startsWith('/');
+                        addImg(item, `${prefix || 'Foto'} ${idx + 1}`, isUrl);
+                    } else if (item && typeof item === 'object') {
+                        const linkCandidate = item.url || item.foto_url || item.link || item.src || item.image_url;
+                        const b64Candidate = item.base64 || item.foto_base64 || item.foto || item.data;
+                        if (linkCandidate && typeof linkCandidate === 'string' && /^https?:\/\//i.test(linkCandidate)) {
+                            addImg(linkCandidate, item.fonte || item.source || item.uf || prefix || 'Foto', true);
+                        } else if (b64Candidate && typeof b64Candidate === 'string' && isImageValue(b64Candidate, 'foto')) {
+                            addImg(b64Candidate, item.fonte || item.source || item.uf || prefix || 'Foto', false);
+                        } else {
+                            scan(item, prefix);
+                        }
+                    }
+                });
+                return;
+            }
+            // Prefer URL fields first
+            for (const [k, v] of Object.entries(o)) {
+                if (typeof v === 'string' && isImageValue(v, k)) {
+                    const isUrl = /^https?:\/\//i.test(v.trim()) || v.trim().startsWith('/');
+                    addImg(v, k.replace(/_/g, ' ').toUpperCase(), isUrl);
+                } else if (Array.isArray(v) && isImageKey(k)) {
+                    scan(v, k.replace(/_/g, ' ').toUpperCase());
+                } else if (v && typeof v === 'object' && isImageKey(k)) {
+                    scan(v, k.replace(/_/g, ' ').toUpperCase());
+                }
+            }
+        }
+        scan(obj);
+        // If we have URL images, prefer them; include base64 only if no URL images exist (or for distinct sources)
+        return urlImages.length ? [...urlImages, ...base64Images] : base64Images;
+    }
+
+    function renderImagesGallery(images) {
+        if (!images || !images.length) return '';
+        return `<div class="rd-photo-grid">${images.map(img => `
+            <div class="rd-photo-card">
+                <img src="${esc(img.src)}" alt="${esc(img.label || 'Imagem da consulta')}" loading="lazy" onerror="this.closest('.rd-photo-card').style.display='none'"/>
+                <small>${esc(img.label || 'Registro visual')}</small>
+            </div>
+        `).join('')}</div>`;
+    }
+
+
+    async function downloadFormattedPdf(title, subtitle, sections, filename) {
+        try {
+            toast('Gerando documento PDF formatado...');
+            const r = await fetch('/api/export_pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, subtitle, sections, filename }),
+            });
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({}));
+                throw new Error(err.error || 'Falha ao gerar PDF');
+            }
+            const blob = await r.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename.endsWith('.pdf') ? filename : (filename + '.pdf');
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 600);
+            toast('PDF baixado com sucesso!');
+        } catch (e) {
+            toast(e.message, 'error');
+        }
+    }
+
+    function extractDomSectionsForPdf(rootSelector, selectorCard, selectorTitle, selectorKv, selectorKey, selectorVal) {
+        const root = document.querySelector(rootSelector);
+        if (!root) return [];
+        const out = [];
+        root.querySelectorAll(selectorCard).forEach(cardEl => {
+            const titleEl = cardEl.querySelector(selectorTitle);
+            const secTitle = titleEl ? titleEl.textContent.trim().replace(/\s+/g, ' ') : 'Seção';
+            if (/JSON| código/i.test(secTitle)) return;
+            const rows = [];
+            cardEl.querySelectorAll(selectorKv).forEach(kvEl => {
+                const k = kvEl.querySelector(selectorKey)?.textContent.trim() || '';
+                const v = kvEl.querySelector(selectorVal)?.textContent.trim() || '';
+                if (k || v) rows.push([k, v]);
+            });
+            cardEl.querySelectorAll('table').forEach(tbl => {
+                const headers = [...tbl.querySelectorAll('th')].map(th => th.textContent.trim());
+                tbl.querySelectorAll('tbody tr').forEach((tr, idx) => {
+                    const cells = [...tr.querySelectorAll('td')].map(td => td.textContent.trim());
+                    if (cells.length) {
+                        const summary = cells.map((c, i) => headers[i] ? `${headers[i]}: ${c}` : c).join(' | ');
+                        rows.push([`Item ${idx + 1}`, summary]);
+                    }
+                });
+            });
+            if (!rows.length) {
+                cardEl.querySelectorAll('.cpf-item, .rd-business-item, .rd-token').forEach((itemEl, idx) => {
+                    const t = itemEl.textContent.trim().replace(/\s+/g, ' ');
+                    if (t) rows.push([`Registro ${idx + 1}`, t]);
+                });
+            }
+            if (rows.length) out.push({ title: secTitle, rows });
+        });
+        return out;
+    }
+
+    // ── VIEW 1: Catálogo de Módulos (consultas.html) ────────────────
+    const groups = ['Todos', ...new Set(uiMods.map(m => m.category))];
+
+    function renderCatalog() {
+        const q = ($('catalog-search').value || '').trim().toLocaleLowerCase('pt-BR');
+        const filtered = uiMods.filter(m =>
+            (currentGroup === 'Todos' || m.category === currentGroup) &&
+            (m.label + ' ' + m.description + ' ' + m.category + ' ' + m.id).toLocaleLowerCase('pt-BR').includes(q)
+        );
+        $('catalog-total').textContent = `${filtered.length} de ${uiMods.length} módulos`;
+        $('catalog-filters').innerHTML = groups.map(g => `
+            <button type="button" class="ux-filter ${currentGroup === g ? 'active' : ''}" data-category="${esc(g)}" aria-pressed="${currentGroup === g}">
+                ${esc(g)} <span class="ux-count">${g === 'Todos' ? uiMods.length : uiMods.filter(m => m.category === g).length}</span>
+            </button>
+        `).join('');
+        $('catalog-list').innerHTML = filtered.map(m => `
+            <article class="ux-card ux-module" style="cursor:pointer" data-open="${m.idx}">
+                <div class="ux-module-top">
+                    <span class="ux-mini-icon">${ico(m.icon)}</span>
+                    <span class="ux-pill">${esc(m.category)}</span>
+                </div>
+                <h3>${esc(m.label)}</h3>
+                <p>${esc(m.description)}</p>
+                <div class="ux-module-foot">
+                    <span>${m.params.length} parâmetro(s)</span>
+                    <button type="button" data-open="${m.idx}">Consultar ${ico('arrow')}</button>
+                </div>
+            </article>
+        `).join('');
+        $('catalog-empty').classList.toggle('ux-hidden', filtered.length !== 0);
+    }
+
+    $('catalog-search').addEventListener('input', renderCatalog);
+    $('catalog-clear').addEventListener('click', () => {
+        $('catalog-search').value = '';
+        currentGroup = 'Todos';
+        renderCatalog();
+    });
+    $('catalog-filters').addEventListener('click', e => {
+        const b = e.target.closest('[data-category]');
+        if (b) {
+            currentGroup = b.dataset.category;
+            renderCatalog();
+        }
+    });
+    $('catalog-list').addEventListener('click', e => {
+        const card = e.target.closest('[data-open]');
+        if (!card) return;
+        const m = uiMods[Number(card.dataset.open)];
+        if (m) openModuleView(m);
+    });
+
+    $('rd-back').addEventListener('click', () => {
+        $('view-consultation').classList.add('ux-hidden');
+        $('view-catalog').classList.remove('ux-hidden');
+        loadRecentLogs();
+    });
+
+    $('rd-toggle-fields').addEventListener('click', () => {
+        const box = $('rd-field-chips');
+        box.classList.toggle('rd-hide');
+        const open = !box.classList.contains('rd-hide');
+        $('rd-toggle-fields').setAttribute('aria-expanded', String(open));
+        $('rd-toggle-fields').innerHTML = (open ? 'Ocultar seções ' : 'Ver seções ') + ico('chevron');
+    });
+
+    function openModuleView(m, prefillParams = null) {
+        activeMod = m;
+        $('view-catalog').classList.add('ux-hidden');
+        $('view-consultation').classList.remove('ux-hidden');
+        $('rd-mod-icon').innerHTML = ico(m.icon);
+        $('rd-mod-eyebrow').textContent = `MÓDULO DE CONSULTA · ${m.id.toUpperCase()}`;
+        $('rd-mod-title').textContent = m.label;
+        $('rd-mod-desc').textContent = m.description;
+        $('rd-mod-badge').textContent = m.category;
+        $('rd-results-mount').innerHTML = '';
+
+        const placeholders = {
+            cpf: '000.000.000-00',
+            cnpj: '00.000.000/0000-00',
+            telefone: '85999999999',
+            phone: '85999999999',
+            cep: '60000-000',
+            nome: 'Digite o nome completo',
+            cidade: 'Ex: FORTALEZA',
+            uf: 'Ex: CE',
+            estado: 'Ex: CE',
+            cpf_meio: '6 dígitos centrais (Ex: 131315)',
+            placa: 'ABC1D23',
+            email: 'exemplo@dominio.com'
+        };
+
+        $('rd-form-fields').innerHTML = m.params.map(p => {
+            const isUf = p.name === 'uf' || p.name === 'estado';
+            const val = prefillParams && prefillParams[p.name] ? prefillParams[p.name] : '';
+            if (isUf) {
+                return `<div>
+                    <label class="rd-label" for="rdf-${esc(p.name)}">${ico('pin')} ${esc(p.name.toUpperCase())}${p.required ? ' *' : ' (Opcional)'}</label>
+                    <div class="rd-input">
+                        ${ico('pin')}
+                        <select id="rdf-${esc(p.name)}" name="${esc(p.name)}" data-param="${esc(p.name)}" ${p.required ? 'required' : ''} style="width:100%;border:0;background:transparent;color:var(--text);font:inherit;outline:none">
+                            <option value="">Todos os estados</option>
+                            ${ESTADOS.map(uf => `<option value="${uf}" ${val === uf ? 'selected' : ''}>${uf}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>`;
+            }
+            return `<div>
+                <label class="rd-label" for="rdf-${esc(p.name)}">${ico(m.icon)} ${esc(p.name.toUpperCase())}${p.required ? ' *' : ' (Opcional)'}</label>
+                <div class="rd-input">
+                    ${ico(m.icon)}
+                    <input id="rdf-${esc(p.name)}" name="${esc(p.name)}" data-param="${esc(p.name)}" value="${esc(val)}" placeholder="${esc(placeholders[p.name] || ('Informe ' + p.name))}" ${p.required ? 'required' : ''} autocomplete="off"/>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Attach masks for CPF / CNPJ
+        const cpfInput = $('rdf-cpf');
+        if (cpfInput) {
+            cpfInput.addEventListener('input', e => {
+                const v = digits(e.target.value).slice(0, 11);
+                e.target.value = v.replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1-$2');
+            });
+        }
+        const cnpjInput = $('rdf-cnpj');
+        if (cnpjInput) {
+            cnpjInput.addEventListener('input', e => {
+                const v = digits(e.target.value).slice(0, 14);
+                e.target.value = v.replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2');
+            });
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    $('rd-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        if (!activeMod) return;
+        const body = { module: activeMod.id };
+        $('rd-form-fields').querySelectorAll('[data-param]').forEach(inp => {
+            const v = inp.value.trim();
+            if (v) body[inp.dataset.param] = v;
+        });
+        const firstReq = activeMod.params.find(p => p.required);
+        if (firstReq && body[firstReq.name]) {
+            body.valor = body[firstReq.name];
+        }
+
+        const btn = $('rd-submit-btn');
+        btn.disabled = true;
+        $('rd-submit-text').textContent = 'Consultando...';
+        $('rd-validation').textContent = 'Executando consulta na base de dados...';
+
+        try {
+            const r = await fetch('/api/consulta', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const d = await r.json();
+            if (!r.ok || d.error) {
+                throw new Error(d.error || `Erro HTTP ${r.status}`);
+            }
+            lastPayload = d;
+            $('rd-validation').innerHTML = `${ico('check')} Consulta concluída em ${d.time_ms || 0} ms.`;
+            renderConsultationPayload(d, activeMod);
+        } catch (err) {
+            $('rd-validation').textContent = 'Erro: ' + err.message;
+            toast(err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            $('rd-submit-text').textContent = 'Consultar';
+        }
+    });
+
+    function renderConsultationPayload(payload, mod) {
+        const modId = mod?.id || payload.module || '';
+        if (modId === 'cnpj_titulares' || payload?.raw_response?.consulta_cnpj) {
+            renderCnpjTitularReport(payload);
+            return;
+        }
+        if (modId === 'cb_cpf' || modId === 'df_cpf') {
+            renderCpfRedesenhadaReport(payload);
+            return;
+        }
+        renderGeneralStructuredReport(payload, mod);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // RENDERER 1: CONSULTA CPF REDESENHADA (consulta_cpf_redesenhada.html)
+    // ══════════════════════════════════════════════════════════════════
+    function renderCpfRedesenhadaReport(payload) {
+        const raw = payload.raw_response || payload.data || {};
+        const dRoot = raw.data || raw;
+        const B = dRoot.body && !Array.isArray(dRoot.body)
+            ? dRoot.body
+            : (Array.isArray(payload.rows) && payload.rows[0] ? payload.rows[0] : dRoot);
+
+        let visible = true; // Show real queried data immediately, with toggle to mask/unmask
+        const mount = $('rd-results-mount');
+        mount.innerHTML = `
+            <div id="cpf-results">
+                <div class="rd-results-title">
+                    <div>
+                        <span class="rd-eyebrow">RELATÓRIO ESTRUTURADO</span>
+                        <h2>Resultado da consulta CPF</h2>
+                        <p>Informações agrupadas para facilitar a leitura, preservando os dados de origem.</p>
+                    </div>
+                    <div class="rd-actions">
+                        <button class="rd-btn" id="cpf-mask" type="button">${ico('eyeoff')}<span>Ocultar dados</span></button>
+                        <button class="rd-btn" id="cpf-expand" type="button">${ico('expand')}<span>Expandir tudo</span></button>
+                        <button class="rd-btn" id="cpf-print" type="button">${ico('printer')}PDF</button>
+                        <button class="rd-btn" id="cpf-csv" type="button">${ico('download')}CSV</button>
+                        <button class="rd-btn accent" id="cpf-json" type="button">${ico('download')}JSON</button>
+                    </div>
+                </div>
+                <div class="cpf-stats" id="cpf-stats"></div>
+                <div class="cpf-intro" id="cpf-intro"></div>
+                <div class="rd-report-search">
+                    ${ico('search')}
+                    <input aria-label="Buscar nos dados" id="cpf-search" placeholder="Buscar informações dentro do relatório..." type="search"/>
+                </div>
+                <div class="cpf-report-layout">
+                    <aside class="cpf-index rd-panel">
+                        <div class="cpf-side-head">SEÇÕES DO RELATÓRIO</div>
+                        <nav aria-label="Índice do relatório" id="cpf-index"></nav>
+                        <p class="cpf-smallprint">Dados pessoais e cadastrais. Uso restrito e autorizado.</p>
+                    </aside>
+                    <div class="cpf-main">
+                        <div class="cpf-cardgrid" id="cpf-sections"></div>
+                        <p class="cpf-smallprint cpf-bottom">Os registros podem ser históricos e são exibidos conforme retornados pelo provedor.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const fmt = v => blank(v) ? '<span class="cpf-muted">Não informado</span>' : esc(v);
+        const privacy = (v, type = 'generic') => {
+            if (blank(v) || visible) return v;
+            const s = String(v);
+            if (type === 'cpf') return digits(s).slice(0, 3) + '.***.***-' + digits(s).slice(-2);
+            if (type === 'email') { const [a, b] = s.split('@'); return a ? `${a.slice(0, 2)}•••@${b || '•••'}` : '•••'; }
+            if (type === 'phone') return s.slice(0, 2) + ' ••••• ' + s.slice(-4);
+            if (type === 'name') return s.split(' ').map((x, i) => i === 0 ? x : x.slice(0, 1) + '•••').join(' ');
+            if (type === 'pis') return '***.***.***-**';
+            return 'Dados ocultos';
+        };
+        const kv = (key, val, { privateType, html = false } = {}) =>
+            `<div class="cpf-kv"><div class="cpf-k">${esc(key)}</div><div class="cpf-v">${html ? val : fmt(privateType ? privacy(val, privateType) : val)}</div></div>`;
+        const pairs = rows => rows.map(r => kv(r[0], r[1], r[2] || {})).join('');
+        const note = t => `<div class="cpf-note">${esc(t)}</div>`;
+        const subtitle = t => `<h4 class="cpf-subtitle">${esc(t)}</h4>`;
+        const grid = (items, renderer) => items && items.length ? `<div class="cpf-list">${items.map(renderer).join('')}</div>` : '<div class="cpf-note">Nenhum registro listado.</div>';
+        const card = (title, body, sub = '', pill = '') =>
+            `<div class="cpf-item"><div class="cpf-item-head"><div><h4>${esc(title)}</h4>${sub ? `<small>${esc(sub)}</small>` : ''}</div>${pill ? `<span class="cpf-pill">${esc(pill)}</span>` : ''}</div>${body ? `<div class="cpf-inner">${body}</div>` : ''}</div>`;
+        const table = (headers, rows) => rows && rows.length
+            ? `<div class="cpf-tablewrap"><table class="cpf-table"><thead><tr>${headers.map(h => `<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((v, i) => `<td${i === 0 ? ' class="cpf-keycell"' : ''}>${fmt(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+            : '<div class="cpf-note">Nenhum registro disponível nesta tabela.</div>';
+
+        const name = B.name || B.nome || 'Nome não informado';
+        const cpfVal = B.cpf_masked || fmtCpf(B.cpf || '');
+        const birth = fmtDate(B.birth_date || B.data_nascimento || B.nascimento);
+        const occ = B.occupation || B.occupation_name || B.profissao || 'Ocupação não informada';
+        const fedStatus = B.federal_status || B.situacao_cadastral || B.situacao_receita || 'REGULAR';
+        const phones = Array.isArray(B.phones) ? B.phones : (Array.isArray(B.telefones) ? B.telefones.map(t => typeof t === 'object' ? (t.telefone || t.numero) : t) : []);
+        const addrs = Array.isArray(B.all_addresses) ? B.all_addresses : (Array.isArray(B.enderecos) ? B.enderecos : (B.address ? [B.address] : (B.endereco ? [B.endereco] : [])));
+        const empresas = Array.isArray(B.empresas_vinculadas) && B.empresas_vinculadas.length ? B.empresas_vinculadas : (Array.isArray(B.empresas) ? B.empresas : []);
+        const emailsList = Array.isArray(B.emails) ? B.emails : (Array.isArray(B.additional_emails) ? B.additional_emails.map(e => ({ email: e })) : (B.email ? [{ email: B.email }] : []));
+        const vehiclesList = Array.isArray(B.vehicles?.list) ? B.vehicles.list : (Array.isArray(B.detran_vehicles) ? B.detran_vehicles : (Array.isArray(B.veiculos) ? B.veiculos : []));
+        const parentesList = Array.isArray(B.serasa_completo?.parentes) ? B.serasa_completo.parentes : (Array.isArray(B.parentes) ? B.parentes : []);
+        const vizinhosList = Array.isArray(B.vizinhos) ? B.vizinhos : [];
+        const histTels = Array.isArray(B.historico_telefones) ? B.historico_telefones : [];
+        const opTels = Array.isArray(B.telefones_operadoras) ? B.telefones_operadoras : [];
+        const asseccTels = Array.isArray(B.telefones_assecc) ? B.telefones_assecc : [];
+        const images = extractRecordImages(B);
+
+        function updateIntroAndStats() {
+            const avatarHtml = images.length
+                ? `<img src="${esc(images[0].src)}" alt="Foto" style="width:62px;height:62px;border-radius:15px;object-fit:cover;border:1px solid var(--line)"/>`
+                : `<div class="cpf-avatar">${esc(initials(name))}</div>`;
+            $('cpf-intro').innerHTML = `
+                ${avatarHtml}
+                <div style="min-width:0;flex:1">
+                    <h3>${esc(name)}</h3>
+                    <p>CPF: <span>${esc(privacy(cpfVal, 'cpf'))}</span> · Nascimento: ${esc(birth)} · ${esc(occ)}</p>
+                    <div class="cpf-tags">
+                        <span class="cpf-tag">CPF: ${esc(fedStatus)}</span>
+                        <span class="cpf-tag">${empresas.length} empresa(s) vinculada(s)</span>
+                        <span class="cpf-tag">${addrs.length} endereço(s)</span>
+                        <span class="cpf-tag">${phones.length} telefone(s)</span>
+                    </div>
+                </div>
+            `;
+            $('cpf-stats').innerHTML = [
+                ['Situação do CPF', fedStatus, 'Receita Federal'],
+                ['Telefones', phones.length, 'Números encontrados'],
+                ['Endereços', addrs.length, 'Diferentes bases'],
+                ['Empresas', empresas.length, 'Vínculos retornados']
+            ].map(([label, value, sub]) => `<div class="cpf-stat"><small>${esc(label)}</small><strong>${esc(value)}</strong><em>${esc(sub)}</em></div>`).join('');
+        }
+
+        function buildSections(preserveOpen = false) {
+            const openSet = new Set(preserveOpen ? Array.from(document.querySelectorAll('.cpf-sec[open]')).map(x => x.id) : []);
+            const sections = [];
+            const sec = (id, title, desc, icon, wide, content, open = false) => sections.push({ id, title, desc, icon, wide, content, open });
+
+            const serasa = B.serasa_completo || {};
+            const sc = B.score || serasa.score || {};
+            const socClass = B.social_class || {};
+            const rendaEst = B.renda_estimativas || {};
+
+            sec('identidade', 'Dados pessoais', 'Identificação cadastral e documentação', 'user', false,
+                pairs([
+                    ['Nome completo', name],
+                    ['CPF', cpfVal, { privateType: 'cpf' }],
+                    ['Data de nascimento', birth],
+                    ['Sexo', B.gender === 'M' ? 'Masculino' : B.gender === 'F' ? 'Feminino' : (B.gender || B.sexo)],
+                    ['Nome da mãe', B.mother_name || B.nome_mae || B.nomeMae, { privateType: 'name' }],
+                    ['Nome do pai', B.father_name || B.nome_pai],
+                    ['Profissão', occ],
+                    ['CBO', B.cbo || B.occupation_code],
+                    ['UF do CPF', B.estado_cpf || B.state || B.uf],
+                    ['RG', B.rg],
+                    ['Órgão emissor / UF RG', [B.rg_issuer || B.rg_orgao_emissor, B.rg_state || B.rg_uf_emissao].filter(Boolean).join(' / ')],
+                    ['Título de eleitor', B.voter_id || B.titulo_eleitor || serasa.tse?.titulo],
+                    ['PIS', B.pis || serasa.pis, { privateType: 'pis' }],
+                    ['CNS (Cartão SUS)', B.cns],
+                    ['Situação Receita Federal', fedStatus],
+                    ['Óbito sinalizado', (B.death_flag && B.death_flag !== '0') || B.falecido ? 'Sim' : 'Não'],
+                ]), true);
+
+            sec('financeiro', 'Indicadores financeiros', 'Renda, faixas e modelos de avaliação', 'wallet', false,
+                pairs([
+                    ['Renda estimada', money(B.income || B.renda)],
+                    ['Faixa de renda', B.income_bracket],
+                    ['Classe social', socClass.social_class || socClass.classe],
+                    ['Subclasse social', socClass.sub_social_class || socClass.subclasse],
+                    ['Score CSB8', sc.csb8 || sc.CSB8 || sc.value],
+                    ['Faixa CSB8', sc.csb8_range || sc.CSB8_FAIXA || sc['Faixa CSB8'] || sc.range],
+                    ['Score CSBA', sc.csba || sc.CSBA],
+                    ['Faixa CSBA', sc.csba_range || sc.CSBA_FAIXA || sc['Faixa CSBA']],
+                    ['Mosaico', typeof B.mosaic === 'object' ? B.mosaic?.primario : (B.mosaic || serasa.dados_cadastrais?.mosaic)],
+                    ['Poder aquisitivo', serasa.poder_aquisitivo?.PODER_AQUISITIVO || rendaEst.poder_aquisitivo?.classificacao],
+                    ['Faixa poder aquisitivo', serasa.poder_aquisitivo?.FX_PODER_AQUISITIVO || rendaEst.poder_aquisitivo?.faixa],
+                ]) + (rendaEst.presumida || rendaEst.poder_aquisitivo ? subtitle('Estimativas de renda') + pairs([
+                    ['Renda presumida', money(rendaEst.presumida?.valor)],
+                    ['Fonte presumida', rendaEst.presumida?.fonte],
+                    ['Renda poder aquisitivo', money(rendaEst.poder_aquisitivo?.valor)],
+                    ['Fonte poder aquisitivo', rendaEst.poder_aquisitivo?.fonte],
+                ]) : '') + (rendaEst.nota ? note(rendaEst.nota) : ''), true);
+
+            sec('telefones', 'Telefones encontrados', `${phones.length} número(s) presente(s) na resposta`, 'phone', true,
+                grid(phones, (v, i) => card(visible ? String(v) : privacy(v, 'phone'), '', `Registro ${i + 1} de ${phones.length}`)) +
+                (histTels.length ? subtitle('Histórico cadastral de telefones') + table(['Telefone', 'Classificação', 'Inclusão', 'Tipo'], histTels.map(p => [privacy(p.telefone || p.numero, 'phone'), p.classificacao, p.data_inclusao || p.inclusao, p.tipo])) : '') +
+                (opTels.length ? subtitle('Registros por operadoras') + table(['Telefone', 'Operadora / Fonte', 'Local'], opTels.map(p => [privacy(p.telefone, 'phone'), [p.operadora, p.fonte].filter(Boolean).join(' · '), [p.cidade, p.uf].filter(Boolean).join(' / ')])) : '') +
+                (asseccTels.length ? subtitle('Outras bases telefônicas') + table(['Telefone', 'Cidade', 'UF'], asseccTels.map(p => [privacy(p.telefone, 'phone'), p.cidade, p.uf])) : ''),
+                true);
+
+            sec('emails', 'E-mails cadastrados', `${emailsList.length} endereço(s) de e-mail`, 'mail', false,
+                grid(emailsList, (p, i) => {
+                    const em = typeof p === 'string' ? p : (p.email || p.address || '');
+                    return card(privacy(em, 'email'), typeof p === 'object' ? pairs([
+                        ['Qualidade / Score', p.email_score || p.quality || p.qualidade],
+                        ['Status', p.status || p.situacao],
+                        ['Domínio', p.domain || p.domain_type],
+                        ['Data inclusão', p.date_added || p.incluido]
+                    ]) : '', `E-mail #${i + 1}`);
+                }), true);
+
+            sec('enderecos', 'Endereços encontrados', `${addrs.length} entrada(s) localizada(s)`, 'pin', true,
+                grid(addrs, (p, i) => {
+                    const full = [p.type || p.tipo_logradouro, p.street || p.logradouro, p.number || p.numero || p.logradouroNumero].filter(x => !blank(x)).join(' ');
+                    const city = p.city || p.municipio || '';
+                    const st = p.state || p.uf || '';
+                    return card(`${i + 1}. ${full || 'Endereço'}`, pairs([
+                        ['Complemento', p.complement || p.complemento],
+                        ['Bairro', p.neighborhood || p.bairro],
+                        ['Município', city],
+                        ['UF', st],
+                        ['CEP', p.zip_code || p.cep],
+                        ['Classificação', p.classificacao],
+                        ['Atualização', p.data_atualizacao || p.date_added]
+                    ]), p.source || 'ENDEREÇO', [city, st].filter(Boolean).join(' / '));
+                }), true);
+
+            if (empresas.length) {
+                sec('empresas', 'Empresas vinculadas', `${empresas.length} vínculo(s) empresarial(is)`, 'building', true,
+                    grid(empresas, (emp, i) => card(emp.nome_fantasia || emp.razao_social || `Empresa ${i + 1}`, pairs([
+                        ['Razão social', emp.razao_social],
+                        ['CNPJ', fmtCnpj(emp.cnpj)],
+                        ['Situação', emp.situacao],
+                        ['Porte', emp.porte],
+                        ['Capital social', money(emp.capital_social)],
+                        ['Qualificação / Vínculo', emp.qualificacao || emp.socio_qualificacao || emp.vinculo],
+                        ['CNAE principal', emp.cnae_principal || emp.cnae_descricao],
+                        ['Município / UF', [emp.municipio, emp.uf].filter(Boolean).join(' / ')],
+                    ]), emp.cnpj ? fmtCnpj(emp.cnpj) : '', emp.situacao || 'VÍNCULO')), true);
+            }
+
+            if (vehiclesList.length) {
+                sec('veiculos', 'Veículos registrados', `${vehiclesList.length} veículo(s) localizado(s)`, 'car', false,
+                    grid(vehiclesList, (v, i) => card(v.modelo || v.model || v.marca || `Veículo ${i + 1}`, pairs([
+                        ['Placa', v.placa || v.plate],
+                        ['RENAVAM', v.renavam],
+                        ['Ano', v.ano || v.year_model || (Array.isArray(v.years) ? v.years.join(', ') : '')],
+                        ['Cor', v.cor || v.color],
+                        ['Chassi', v.chassi || v.chassis],
+                        ['Município / UF', [v.cidade || v.city, v.uf || v.state].filter(Boolean).join(' / ')]
+                    ]), v.placa || v.plate || '', v.cor || v.color || '')), true);
+            }
+
+            if (B.cnh && (B.cnh.num_cnh || B.cnh.numero_registro)) {
+                sec('cnh', 'CNH e Habilitação', 'Dados de habilitação localizados', 'id', false,
+                    pairs([
+                        ['Número CNH', B.cnh.num_cnh || B.cnh.numero_registro],
+                        ['UF', B.cnh.uf || B.cnh.fonte_uf],
+                        ['Primeira habilitação', fmtDate(B.cnh.primeira_habilitacao || B.cnh.data_primeira_habilitacao)],
+                        ['Permissionário', B.cnh.permissionario ? 'Sim' : 'Não'],
+                        ['Atualizado em', fmtDate(B.cnh.atualizado_em)]
+                    ]));
+            }
+
+            if (parentesList.length) {
+                sec('parentes', 'Parentes e familiares', `${parentesList.length} vínculo(s) familiar(es)`, 'users', false,
+                    table(['Nome', 'Vínculo', 'CPF'], parentesList.map(p => [visible ? p.nome : privacy(p.nome, 'name'), p.vinculo, privacy(p.cpf, 'cpf')])));
+            }
+
+            if (vizinhosList.length) {
+                sec('vizinhos', 'Registros de vizinhança', `${vizinhosList.length} entrada(s) na vizinhança`, 'users', true,
+                    table(['Nome', 'CPF', 'Bairro', 'Logradouro / Nº'], vizinhosList.map(p => Array.isArray(p)
+                        ? [visible ? p[0] : privacy(p[0], 'name'), privacy(p[1], 'cpf'), p[2], [p[3], p[4]].filter(Boolean).join(', ')]
+                        : [visible ? p.nome : privacy(p.nome, 'name'), privacy(p.cpf, 'cpf'), p.bairro, [p.logradouro, p.numero].filter(Boolean).join(', ')]
+                    )));
+            }
+
+            if (images.length) {
+                sec('fotos', 'Fotos e imagens', `${images.length} imagem(ns) vinculada(s)`, 'user', true,
+                    renderImagesGallery(images), true);
+            }
+
+            const cov = B.data_coverage || {};
+            if (cov.sources || cov.total_sources) {
+                sec('cobertura', 'Cobertura das fontes', `${cov.total_sources || (cov.sources || []).length} bases consultadas`, 'list', false,
+                    `<div class="cpf-badges">${(cov.sources || []).map(s => `<span>${esc(s)}</span>`).join('')}</div>`);
+            }
+
+            sec('tecnico', 'Informações técnicas e JSON', 'Metadados da consulta', 'code', true,
+                pairs([
+                    ['Módulo executado', payload.module || 'cb_cpf'],
+                    ['Tempo de resposta', (payload.time_ms || 0) + ' ms'],
+                    ['Estado do contrato', B.contract_state || dRoot.contract_state || 'valid']
+                ]) + `<details class="cpf-details"><summary style="cursor:pointer;font-weight:600">Ver JSON completo da resposta</summary><pre class="rd-codebox" style="margin:.75rem;max-height:380px;overflow:auto">${esc(JSON.stringify(B, null, 2))}</pre></details>`);
+
+            $('cpf-sections').innerHTML = sections.map(s => `
+                <details id="${s.id}" class="cpf-sec${s.wide ? ' wide' : ''}" ${openSet.size ? (openSet.has(s.id) ? 'open' : '') : (s.open ? 'open' : '')}>
+                    <summary>
+                        <span class="cpf-icon">${ico(s.icon)}</span>
+                        <span><strong>${esc(s.title)}</strong><small>${esc(s.desc)}</small></span>
+                        <svg class="rd-ico cpf-chevron"><use href="#i-chevron"></use></svg>
+                    </summary>
+                    <div class="cpf-body">${s.content}</div>
+                </details>
+            `).join('');
+
+            $('cpf-index').innerHTML = sections.map((s, i) => `
+                <a href="#${s.id}" data-to="${s.id}">${ico(s.icon)} ${esc(s.title)} <span>${String(i + 1).padStart(2, '0')}</span></a>
+            `).join('');
+
+            $('cpf-index').querySelectorAll('a').forEach(a => a.addEventListener('click', e => {
+                e.preventDefault();
+                const el = $(a.dataset.to);
+                if (el) {
+                    el.open = true;
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }));
+        }
+
+        updateIntroAndStats();
+        buildSections(false);
+
+        $('cpf-mask').addEventListener('click', () => {
+            visible = !visible;
+            $('cpf-mask').innerHTML = `${ico(visible ? 'eyeoff' : 'eye')}<span>${visible ? 'Ocultar dados' : 'Mostrar dados'}</span>`;
+            updateIntroAndStats();
+            buildSections(true);
+        });
+        $('cpf-expand').addEventListener('click', () => {
+            const list = [...document.querySelectorAll('.cpf-sec')];
+            const expand = list.some(x => !x.open);
+            list.forEach(x => { x.open = expand; });
+            $('cpf-expand').querySelector('span').textContent = expand ? 'Recolher tudo' : 'Expandir tudo';
+        });
+        $('cpf-print').addEventListener('click', () => {
+            const pdfSections = extractDomSectionsForPdf('#cpf-sections', '.cpf-sec', 'summary strong', '.cpf-kv', '.cpf-k', '.cpf-v');
+            downloadFormattedPdf(
+                `Consulta CPF - ${name}`,
+                `CPF: ${cpfVal} | Nascimento: ${birth} | Situacao: ${fedStatus}`,
+                pdfSections,
+                `relatorio_cpf_${digits(cpfVal) || 'consulta'}.pdf`
+            );
+        });
+        $('cpf-json').addEventListener('click', () => {
+            window.uiDownload(`consulta-cpf-${digits(cpfVal) || 'relatorio'}.json`, JSON.stringify(B, null, 2), 'application/json;charset=utf-8');
+        });
+        $('cpf-csv').addEventListener('click', () => {
+            const rows = [['campo', 'valor'], ['nome', name], ['cpf', cpfVal], ['nascimento', birth], ['situacao', fedStatus], ['renda', B.income || B.renda || ''], ['telefones', phones.join(', ')]];
+            const csv = '\ufeff' + rows.map(r => r.map(v => '"' + String(v ?? '').replaceAll('"', '""') + '"').join(';')).join('\r\n');
+            window.uiDownload(`consulta-cpf-${digits(cpfVal) || 'relatorio'}.csv`, csv, 'text/csv;charset=utf-8');
+        });
+        $('cpf-search').addEventListener('input', () => {
+            const q = $('cpf-search').value.toLocaleLowerCase('pt-BR').trim();
+            document.querySelectorAll('.cpf-sec').forEach(el => {
+                const match = !q || el.textContent.toLocaleLowerCase('pt-BR').includes(q);
+                el.style.display = match ? '' : 'none';
+                if (q && match) el.open = true;
+            });
+        });
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // RENDERER 2: CONSULTA CNPJ + TITULAR (consulta_cnpj_redesenhada.html)
+    // ══════════════════════════════════════════════════════════════════
+    function renderCnpjTitularReport(payload) {
+        const co = payload.data || payload.raw_response?.consulta_cnpj || payload.raw_response?.data || (payload.rows && payload.rows[0]) || {};
+        const qsa = Array.isArray(co.qsa) ? co.qsa : (payload.lists?.qsa_enriquecido || []);
+        const state = { selected: 0, unmask: true, expanded: true };
+
+        const mount = $('rd-results-mount');
+        mount.innerHTML = `
+            <section aria-live="polite" id="rd-results">
+                <div class="rd-results-title">
+                    <div>
+                        <span class="rd-eyebrow">CONSULTA REALIZADA · COMPLIANCE EMPRESARIAL + QSA</span>
+                        <h2>Resultados encontrados</h2>
+                        <p id="rd-results-desc"></p>
+                    </div>
+                    <div class="rd-actions">
+                        <button class="rd-btn" id="rd-mask" type="button">${ico('eyeoff')}<span>Ocultar dados</span></button>
+                        <button class="rd-btn" id="rd-expand" type="button">${ico('expand')}<span>Recolher tudo</span></button>
+                        <button class="rd-btn" id="rd-print" type="button">${ico('printer')}PDF</button>
+                        <button class="rd-btn" id="rd-csv" type="button">${ico('download')}CSV</button>
+                        <button class="rd-btn accent" id="rd-json" type="button">${ico('download')}JSON</button>
+                    </div>
+                </div>
+                <div class="rd-stats" id="rd-stats"></div>
+                <div class="rd-report-search">
+                    ${ico('search')}
+                    <input aria-label="Pesquisar informações" autocomplete="off" id="rd-filter" placeholder="Pesquisar informações na empresa ou nos titulares..." type="search"/>
+                </div>
+                <div class="rd-results-layout">
+                    <aside class="rd-person-sidebar rd-panel" id="rd-side">
+                        <div class="rd-side-caption">REGISTROS <span id="rd-person-count">${1 + qsa.length}</span></div>
+                        <div class="rd-people-list" id="rd-people"></div>
+                        <div class="rd-side-divider"></div>
+                        <div class="rd-side-caption section-index">NAVEGAÇÃO</div>
+                        <nav aria-label="Seções" class="rd-section-nav" id="rd-section-nav"></nav>
+                    </aside>
+                    <div class="rd-content" id="rd-report-content"></div>
+                </div>
+            </section>
+        `;
+
+        const sensitive = (v, kind) => {
+            const t = String(v ?? '');
+            if (state.unmask) return t;
+            if (kind === 'cpf') return t.includes('*') ? t : (t.length > 4 ? '***.***.***-' + digits(t).slice(-2) : 'Protegido');
+            if (kind === 'email') return t.replace(/^(.{1,2}).*(@.*)$/, '$1••••$2');
+            if (kind === 'phone') return t.replace(/(\d{2})(\d+)(\d{2})/, '$1••••$3');
+            return t;
+        };
+        const kv = (label, value, kind = '') => {
+            const txt = blank(value) ? 'Não informado' : (typeof value === 'boolean' ? (value ? 'Sim' : 'Não') : String(value));
+            const view = kind && !blank(value) ? sensitive(txt, kind) : txt;
+            return `<div class="rd-kv rd-filterable" data-find="${esc(label + ' ' + txt)}"><span class="rd-key">${esc(label)}</span><span class="rd-val">${esc(view)}</span></div>`;
+        };
+        const card = (id, title, icon, body, wide = false, opened = true) =>
+            `<details class="rd-card ${wide ? 'wide' : ''}" id="rd-section-${id}" ${opened ? 'open' : ''}><summary><span class="rd-title-left">${ico(icon)}${esc(title)}</span>${ico('chevron', 'rd-chevron')}</summary><div class="rd-card-body">${body}</div></details>`;
+        const header = (initStr, title, eyebrow, sub, count, caption) =>
+            `<div class="rd-profile"><div class="rd-avatar">${esc(initStr)}</div><div class="rd-profile-info"><div class="rd-eyebrow">${esc(eyebrow)}</div><h2>${esc(title)}</h2><div class="rd-profile-sub">${sub}</div></div><div class="rd-profile-count"><b>${esc(count)}</b><span>${esc(caption)}</span></div></div>`;
+        const badge = (s, good = false) => `<span class="rd-pill ${good ? 'good' : ''}">${esc(s)}</span>`;
+
+        function companySummary() {
+            const totalTabs = String(1 + qsa.length).padStart(2, '0');
+            const headline = header(
+                initials(co.razao_social || 'PJ'),
+                co.razao_social || 'Empresa Consultada',
+                'CADASTRO EMPRESARIAL',
+                badge('CNPJ ' + fmtCnpj(co.cnpj)) +
+                badge(co.descricao_situacao_cadastral || co.situacao_cadastral || 'ATIVA', true) +
+                (co.descricao_identificador_matriz_filial ? badge(co.descricao_identificador_matriz_filial) : ''),
+                `01 / ${totalTabs}`,
+                'Registro selecionado'
+            );
+            const v1 = [
+                kv('Razão social', co.razao_social),
+                kv('Nome fantasia', co.nome_fantasia),
+                kv('CNPJ', fmtCnpj(co.cnpj)),
+                kv('Porte', co.porte || co.descricao_porte),
+                kv('Natureza jurídica', co.natureza_juridica),
+                kv('Capital social', money(co.capital_social)),
+            ].join('');
+            const v2 = [
+                kv('Situação cadastral', co.descricao_situacao_cadastral || co.situacao_cadastral),
+                kv('Data da situação', fmtDate(co.data_situacao_cadastral)),
+                kv('Início das atividades', fmtDate(co.data_inicio_atividade)),
+                kv('Tipo', co.descricao_identificador_matriz_filial),
+                kv('Simples Nacional', co.opcao_pelo_simples),
+                kv('Início no Simples', fmtDate(co.data_opcao_pelo_simples)),
+                kv('MEI', co.opcao_pelo_mei),
+            ].join('');
+            const v3 = [
+                kv('Logradouro', [co.descricao_tipo_de_logradouro, co.logradouro].filter(Boolean).join(' ')),
+                kv('Número', co.numero),
+                kv('Complemento', co.complemento),
+                kv('Bairro', co.bairro),
+                kv('Município', co.municipio),
+                kv('UF', co.uf),
+                kv('CEP', digits(co.cep).replace(/^(\d{5})(\d{3})$/, '$1-$2')),
+                kv('País', co.pais || 'BRASIL'),
+            ].join('');
+            const v4 = [
+                kv('Telefone principal', co.ddd_telefone_1, 'phone'),
+                kv('Telefone secundário', co.ddd_telefone_2 === '000000000000' ? null : co.ddd_telefone_2, 'phone'),
+                kv('E-mail', co.email || co.correio_eletronico, 'email'),
+                kv('Fax', co.ddd_fax),
+            ].join('');
+            const cnaesSec = Array.isArray(co.cnaes_secundarios) ? co.cnaes_secundarios : [];
+            const v5 = [
+                kv('CNAE principal', co.cnae_fiscal ? String(co.cnae_fiscal).padStart(7, '0') : ''),
+                kv('Atividade principal', co.cnae_fiscal_descricao),
+                ...cnaesSec.flatMap(a => [
+                    kv('CNAE secundário', a.codigo ? String(a.codigo).padStart(7, '0') : ''),
+                    kv('Atividade secundária', a.descricao),
+                ]),
+            ].join('');
+            const soc = qsa.length ? qsa.map((p, i) => `
+                <div class="rd-business-item rd-filterable" data-find="${esc(JSON.stringify(p))}">
+                    <div class="rd-business-head">
+                        <div>
+                            <div class="rd-business-title">${esc(p.nome_socio)}</div>
+                            <div class="rd-business-meta">${esc(p.qualificacao_socio || 'Sócio')} · Desde ${esc(fmtDate(p.data_entrada_sociedade))}</div>
+                        </div>
+                        ${p.faixa_etaria ? badge(p.faixa_etaria) : ''}
+                    </div>
+                    <div class="rd-company-mini">CPF / Documento no QSA: ${esc(p.cnpj_cpf_do_socio || 'Não informado')}${p.dados_pessoais?.cpf ? ` · CPF Completo: <strong>${esc(fmtCpf(p.dados_pessoais.cpf))}</strong>` : ''}</div>
+                    <div class="rd-business-footer">
+                        <small>${p.dados_pessoais ? 'Dados pessoais enriquecidos (nome3)' : 'Clique para visualizar / consultar titular'}</small>
+                        <button type="button" class="rd-inline-action" data-person="${i + 1}">${ico('user')} Ver dados do titular</button>
+                    </div>
+                </div>
+            `).join('') : '<div class="rd-no-data">Nenhum sócio retornado no QSA desta empresa.</div>';
+
+            const v6 = [
+                kv('Código da situação', co.situacao_cadastral),
+                kv('Motivo cadastral', co.descricao_motivo_situacao_cadastral),
+                kv('Natureza jurídica (código)', co.codigo_natureza_juridica),
+                kv('Município IBGE', co.codigo_municipio_ibge),
+                kv('Responsável (código)', co.qualificacao_do_responsavel),
+            ].join('');
+
+            const sections = [
+                ['empresa', 'Identificação empresarial', 'building', v1, false],
+                ['situacao', 'Situação cadastral e tributação', 'shield', v2, false],
+                ['endereco', 'Endereço comercial', 'pin', v3, false],
+                ['contato', 'Contato da empresa', 'phone', v4, false],
+                ['atividade', 'Atividades econômicas', 'list', v5, true],
+                ['socios', `Quadro societário · ${qsa.length} titular(es)`, 'users', `<p class="rd-extra-info">Clique em um sócio para visualizar seus dados pessoais e empresas vinculadas enriquecidos pelo módulo Nome + CPF parcial (nome3).</p><div class="rd-business-list">${soc}</div>`, true],
+                ['tecnico', 'Códigos e informações técnicas', 'code', v6, true],
+                ['origem', 'Dados estruturados da consulta', 'code', `<pre class="rd-codebox">${esc(JSON.stringify(co, null, 2))}</pre>`, true],
+            ];
+            return {
+                html: headline + `<div class="rd-cards">${sections.map(s => card(...s)).join('')}</div>`,
+                sections,
+            };
+        }
+
+        function personContent(idx) {
+            const p = qsa[idx] || {};
+            const totalTabs = String(1 + qsa.length).padStart(2, '0');
+            const full = p.dados_pessoais || p.dados_cpf || null;
+            const cpfBody = p.dados_cpf || p.dados_pessoais || {};
+            const businesses = Array.isArray(p.empresas_vinculadas) ? p.empresas_vinculadas : (Array.isArray(full?.empresas_vinculadas) ? full.empresas_vinculadas : []);
+            const displayPart = p.cnpj_cpf_do_socio || '';
+            const fullCpfFormatted = fmtCpf(p.cpf_completo || full?.cpf || cpfBody?.cpf || '');
+
+            const intro = header(
+                initials(p.nome_socio),
+                p.nome_socio || `Titular ${idx + 1}`,
+                'PARTICIPAÇÃO SOCIETÁRIA · TITULAR ENRIQUECIDO (NOME3 + CPF)',
+                badge(p.qualificacao_socio || 'Sócio') +
+                (fullCpfFormatted ? badge('CPF ' + fullCpfFormatted, true) : (displayPart ? badge(displayPart) : '')) +
+                (p.data_entrada_sociedade ? badge('Entrada ' + fmtDate(p.data_entrada_sociedade)) : ''),
+                `${String(idx + 2).padStart(2, '0')} / ${totalTabs}`,
+                'Registro selecionado'
+            );
+
+            const fields = [
+                kv('Nome no QSA', p.nome_socio),
+                kv('Qualificação societária', p.qualificacao_socio),
+                kv('CPF parcial no QSA', displayPart),
+                kv('CPF completo localizado', fullCpfFormatted || 'Não localizado', 'cpf'),
+                kv('Entrada na sociedade', fmtDate(p.data_entrada_sociedade)),
+                kv('Faixa etária declarada', p.faixa_etaria),
+                kv('Identificador de sócio', p.identificador_de_socio),
+                kv('Código da qualificação', p.codigo_qualificacao_socio),
+            ].join('');
+
+            let sections = [
+                ['participacao', 'Vínculo com a empresa (QSA)', 'users', fields, false],
+            ];
+
+            if (full) {
+                const serasa = cpfBody.serasa_completo || full.serasa_completo || {};
+                const sc = cpfBody.score || full.score || serasa.score || {};
+                const socClass = cpfBody.social_class || full.social_class || {};
+                const rendaEst = cpfBody.renda_estimativas || full.renda_estimativas || {};
+
+                const personal = [
+                    kv('Nome completo', full.name || full.nome || p.nome_socio),
+                    kv('CPF completo', fullCpfFormatted || fmtCpf(full.cpf), 'cpf'),
+                    kv('Data de nascimento', fmtDate(full.birth_date || full.nascimento || full.dataNascimento || full.data_nascimento)),
+                    kv('Sexo', (full.gender || full.sexo) === 'M' ? 'Masculino' : (full.gender || full.sexo) === 'F' ? 'Feminino' : (full.gender || full.sexo)),
+                    kv('Nome da mãe', full.mother_name || full.nome_mae || full.nomeMae),
+                    kv('Nome do pai', full.father_name || full.nome_pai),
+                    kv('Profissão / Ocupação', full.occupation || full.occupation_name || full.profissao),
+                    kv('CBO', full.cbo || full.occupation_code),
+                    kv('UF do CPF', full.estado_cpf || full.state || full.uf),
+                    kv('Situação Receita Federal', full.federal_status || full.situacaoCadastral || 'REGULAR'),
+                    kv('RG', full.rg),
+                    kv('Órgão emissor / UF RG', [full.rg_issuer || full.rg_orgao_emissor, full.rg_state || full.rg_uf_emissao].filter(Boolean).join(' / ')),
+                    kv('PIS', full.pis || serasa.pis),
+                    kv('Título de eleitor', full.voter_id || full.titulo_eleitor || serasa.tse?.titulo),
+                    kv('CNS (Cartão SUS)', full.cns),
+                    kv('Estado civil', full.marital_status || full.estado_civil || serasa.dados_cadastrais?.marital_status),
+                    kv('Óbito sinalizado', (full.death_flag && full.death_flag !== '0') || full.falecido ? 'Sim' : 'Não'),
+                ].join('');
+
+                const moneyRows = [
+                    kv('Renda estimada / informada', money(full.income || full.renda)),
+                    kv('Faixa salarial', full.income_bracket),
+                    kv('Poder aquisitivo', serasa.poder_aquisitivo?.PODER_AQUISITIVO || rendaEst.poder_aquisitivo?.classificacao),
+                    kv('Renda poder aquisitivo', money(serasa.poder_aquisitivo?.RENDA_PODER_AQUISITIVO || rendaEst.poder_aquisitivo?.valor)),
+                    kv('Faixa poder aquisitivo', serasa.poder_aquisitivo?.FX_PODER_AQUISITIVO || rendaEst.poder_aquisitivo?.faixa),
+                    kv('Classe social', [socClass.social_class || socClass.classe, socClass.sub_social_class || socClass.subclasse].filter(Boolean).join(' / ')),
+                    kv('Score CSB8', sc.csb8 || sc.CSB8 || sc.value),
+                    kv('Faixa CSB8', sc.csb8_range || sc.CSB8_FAIXA || sc.range),
+                    kv('Score CSBA', sc.csba || sc.CSBA),
+                    kv('Faixa CSBA', sc.csba_range || sc.CSBA_FAIXA),
+                    kv('Mosaico', typeof full.mosaic === 'object' ? full.mosaic?.primario : (full.mosaic || serasa.dados_cadastrais?.mosaic)),
+                ].join('');
+
+                sections.push(
+                    ['dados', 'Dados pessoais e documentos (2º Enriquecimento · CPF)', 'user', personal, false],
+                    ['financeiro', 'Indicadores financeiros, renda e score', 'wallet', moneyRows, false]
+                );
+
+                // Telefones do 2º enriquecimento (/cpf)
+                const phonesList = Array.isArray(p.telefones) && p.telefones.length
+                    ? p.telefones
+                    : (Array.isArray(full.phones_consolidated) && full.phones_consolidated.length
+                        ? full.phones_consolidated
+                        : (Array.isArray(full.phones) ? full.phones : []));
+                const histTels = Array.isArray(full.historico_telefones) ? full.historico_telefones : [];
+                const opTels = Array.isArray(full.telefones_operadoras) ? full.telefones_operadoras : [];
+                if (phonesList.length || histTels.length || opTels.length) {
+                    const phonesHtml = `
+                        ${phonesList.length ? `<div class="rd-tokens" style="margin-bottom:.75rem">${phonesList.map(tel => `<span class="rd-token">${ico('phone')} <strong>${esc(sensitive(tel, 'phone'))}</strong> <button type="button" class="rd-data-copy" data-copy-request="${esc(tel)}">${ico('copy')}</button></span>`).join('')}</div>` : ''}
+                        ${opTels.length ? `<div class="rd-subheading">Operadoras identificadas</div>` + opTels.map(t => kv(t.operadora || t.fonte || 'Telefone', `${t.telefone || ''} ${t.cidade ? '(' + t.cidade + '/' + (t.uf || '') + ')' : ''}`, 'phone')).join('') : ''}
+                        ${histTels.length ? `<div class="rd-subheading">Histórico de telefones (${histTels.length})</div>` + histTels.map(t => kv(`Tel. ${t.tipo || 'Registro'} (${t.classificacao || '-'})`, `${t.telefone || t.numero || ''} · Inclusão: ${t.data_inclusao || t.inclusao || '-'}`, 'phone')).join('') : ''}
+                    `;
+                    sections.push(['telefones', `Telefones localizados · ${phonesList.length} número(s)`, 'phone', phonesHtml, true]);
+                }
+
+                // E-mails do 2º enriquecimento (/cpf)
+                const rawEmails = Array.isArray(full.emails) ? full.emails : [];
+                const addEmails = Array.isArray(full.additional_emails) ? full.additional_emails : [];
+                const emailRows = [];
+                if (full.email && typeof full.email === 'string') emailRows.push(kv('E-mail principal', full.email, 'email'));
+                rawEmails.forEach((em, idxE) => {
+                    if (typeof em === 'string') emailRows.push(kv(`E-mail #${idxE + 1}`, em, 'email'));
+                    else if (em && typeof em === 'object') {
+                        const addr = em.email || em.address || '';
+                        const meta = [em.status || em.situacao, em.email_score || em.quality || em.qualidade].filter(Boolean).join(' · ');
+                        emailRows.push(kv(`E-mail #${idxE + 1}${meta ? ' (' + meta + ')' : ''}`, addr, 'email'));
+                    }
+                });
+                addEmails.forEach((em, idxE) => {
+                    if (typeof em === 'string') emailRows.push(kv(`E-mail adicional #${idxE + 1}`, em, 'email'));
+                });
+                if (emailRows.length) {
+                    sections.push(['emails', 'E-mails cadastrados', 'mail', emailRows.join(''), false]);
+                }
+
+                // Endereços do 2º enriquecimento (/cpf)
+                const addrList = Array.isArray(full.all_addresses) && full.all_addresses.length
+                    ? full.all_addresses
+                    : (full.address ? [full.address] : (full.endereco ? [full.endereco] : []));
+                if (addrList.length) {
+                    const addrHtml = `<div class="rd-business-list">${addrList.map((a, iA) => {
+                        const streetLine = [a.type || a.tipo_logradouro, a.street || a.logradouro, a.number || a.numero || a.logradouroNumero].filter(Boolean).join(' ');
+                        const cityLine = [a.neighborhood || a.bairro, a.city || a.municipio, a.state || a.uf].filter(Boolean).join(' · ');
+                        return `<div class="rd-business-item">
+                            <div class="rd-business-head">
+                                <div>
+                                    <div class="rd-business-title">${esc(streetLine || `Endereço ${iA + 1}`)}</div>
+                                    <div class="rd-business-meta">${esc(cityLine)} · CEP: ${esc(a.zip_code || a.cep || '—')}</div>
+                                </div>
+                                ${a.source ? badge(a.source) : ''}
+                            </div>
+                            ${a.complement || a.complemento ? `<div class="rd-company-mini">Complemento: ${esc(a.complement || a.complemento)}</div>` : ''}
+                        </div>`;
+                    }).join('')}</div>`;
+                    sections.push(['enderecos', `Endereços encontrados · ${addrList.length} registro(s)`, 'pin', addrHtml, true]);
+                }
+
+                // Veículos e CNH
+                const vehList = Array.isArray(full.vehicles?.list) ? full.vehicles.list : (Array.isArray(full.detran_vehicles) ? full.detran_vehicles : []);
+                if (vehList.length) {
+                    const vehHtml = `<div class="rd-business-list">${vehList.map((v, iV) => `
+                        <div class="rd-business-item">
+                            <div class="rd-business-head">
+                                <div>
+                                    <div class="rd-business-title">${esc(v.modelo || v.model || v.marca || `Veículo ${iV + 1}`)}</div>
+                                    <div class="rd-business-meta">Placa: ${esc(v.placa || v.plate || '—')} · RENAVAM: ${esc(v.renavam || '—')} · Ano: ${esc(v.ano || v.year_model || (v.years || []).join(', ') || '—')}</div>
+                                </div>
+                                ${v.cor || v.color ? badge(v.cor || v.color) : ''}
+                            </div>
+                            <div class="rd-company-mini">Chassi: ${esc(v.chassi || v.chassis || '—')} · Local: ${esc([v.cidade || v.city, v.uf || v.state].filter(Boolean).join(' / ') || '—')}</div>
+                        </div>
+                    `).join('')}</div>`;
+                    sections.push(['veiculos', `Veículos registrados · ${vehList.length}`, 'car', vehHtml, false]);
+                }
+
+                if (full.cnh && (full.cnh.num_cnh || full.cnh.numero_registro)) {
+                    const cnhHtml = [
+                        kv('Nº Registro CNH', full.cnh.num_cnh || full.cnh.numero_registro),
+                        kv('UF CNH', full.cnh.uf || full.cnh.fonte_uf),
+                        kv('Primeira habilitação', fmtDate(full.cnh.primeira_habilitacao || full.cnh.data_primeira_habilitacao)),
+                        kv('Última atualização', fmtDate(full.cnh.atualizado_em)),
+                    ].join('');
+                    sections.push(['cnh', 'CNH e habilitação', 'id', cnhHtml, false]);
+                }
+
+                // Parentes e Vizinhos
+                const parentes = Array.isArray(serasa.parentes) ? serasa.parentes : (Array.isArray(full.parentes) ? full.parentes : []);
+                const vizinhos = Array.isArray(full.vizinhos) ? full.vizinhos : [];
+                if (parentes.length || vizinhos.length) {
+                    const relHtml = [
+                        ...parentes.map(pr => kv(`Parente (${pr.vinculo || 'Vínculo'})`, `${pr.nome || ''} · CPF: ${pr.cpf || 'Não consta'}`)),
+                        ...vizinhos.slice(0, 15).map((vz, iv) => kv(`Vizinho #${iv + 1}`, `${vz.nome || ''} (CPF: ${fmtCpf(vz.cpf || '')}) · ${[vz.logradouro, vz.numero, vz.bairro].filter(Boolean).join(', ')}`)),
+                    ].join('');
+                    sections.push(['relacoes', `Parentes (${parentes.length}) e Vizinhos (${vizinhos.length})`, 'users', relHtml, true]);
+                }
+            }
+
+            if (businesses.length) {
+                const companyItems = businesses.map(e => `
+                    <div class="rd-business-item rd-filterable" data-find="${esc(JSON.stringify(e))}">
+                        <div class="rd-business-head">
+                            <div>
+                                <div class="rd-business-title">${esc(e.nome_fantasia || e.razao_social)}</div>
+                                <div class="rd-business-meta">${esc(e.razao_social)}<div>${esc(fmtCnpj(e.cnpj))} · ${esc(e.municipio)} / ${esc(e.uf)}</div></div>
+                            </div>
+                            ${badge(e.situacao || 'VÍNCULO', e.situacao === 'ATIVA')}
+                        </div>
+                        <div class="rd-company-mini">${esc(e.qualificacao || e.socio_qualificacao || e.vinculo || '')}${e.data_entrada ? ' · Desde ' + esc(fmtDate(e.data_entrada)) : ''}</div>
+                        <details style="margin-top:.65rem">
+                            <summary style="cursor:pointer;color:var(--primary);font-size:.72rem;font-weight:600">Ver detalhes do vínculo</summary>
+                            <div>${[
+                                kv('CNPJ', fmtCnpj(e.cnpj)),
+                                kv('Razão social', e.razao_social),
+                                kv('Nome fantasia', e.nome_fantasia),
+                                kv('Porte', e.porte),
+                                kv('Capital social', money(e.capital_social)),
+                                kv('CNAE', e.cnae_principal),
+                                kv('Descrição CNAE', e.cnae_descricao),
+                                kv('E-mail', e.email, 'email'),
+                                kv('Telefone', e.telefone_1, 'phone'),
+                                kv('Dívidas ativas', e.total_dividas_ativas)
+                            ].join('')}</div>
+                        </details>
+                    </div>
+                `).join('');
+                sections.push(['empresas', `Empresas vinculadas ao titular · ${businesses.length} registro(s)`, 'building', `<div class="rd-business-list">${companyItems}</div>`, true]);
+            }
+
+            if (full || p.consulta_cpf || p.consulta_nome3) {
+                const jsonPayload = p.consulta_cpf || full || p.consulta_nome3;
+                sections.push(['json', 'Dados JSON completos do titular', 'code', `<pre class="rd-codebox">${esc(JSON.stringify(jsonPayload, null, 2))}</pre>`, true]);
+            } else if (!full && !businesses.length) {
+                sections.push(['sem-dados', 'Resultado da consulta pessoal', 'info', `<div class="rd-no-data"><strong>Sem retorno adicional para este titular</strong>Foram exibidos os dados societários constantes no QSA da Receita Federal.</div>`, true]);
+            }
+
+            return {
+                html: intro + `<div class="rd-cards">${sections.map(s => card(...s)).join('')}</div>`,
+                sections,
+            };
+        }
+
+        function render() {
+            const totalSocsWithData = qsa.filter(q => q.dados_pessoais || q.dados_cpf || (q.empresas_vinculadas && q.empresas_vinculadas.length)).length;
+            $('rd-people').innerHTML = [
+                { initial: initials(co.razao_social || 'PJ'), name: co.razao_social || 'Empresa Consultada', sub: 'CNPJ · Empresa consultada' },
+                ...qsa.map(q => ({
+                    initial: initials(q.nome_socio),
+                    name: q.nome_socio || 'Sócio',
+                    sub: `${q.qualificacao_socio || 'Sócio'} · ${q.dados_cpf ? 'CPF completo enriquecido' : (q.dados_pessoais ? 'dados enriquecidos' : 'dados QSA')}`,
+                })),
+            ].map((p, i) => `
+                <button type="button" class="rd-person-choice ${i === state.selected ? 'active' : ''}" data-person="${i}" aria-pressed="${i === state.selected}">
+                    <span class="rd-mini-avatar">${esc(p.initial)}</span>
+                    <span><strong>${esc(p.name)}</strong><small>${esc(p.sub)}</small></span>
+                </button>
+            `).join('');
+
+            $('rd-stats').innerHTML = [
+                ['shield', 'Situação cadastral', co.descricao_situacao_cadastral || co.situacao_cadastral || 'ATIVA'],
+                ['users', 'Sócios no QSA', String(qsa.length)],
+                ['wallet', 'Capital social', money(co.capital_social)],
+                ['calendar', 'Abertura', fmtDate(co.data_inicio_atividade)],
+            ].map(([icon, label, value]) => `
+                <div class="rd-stat"><div class="rd-stat-icon">${ico(icon)}</div><div><b>${esc(value)}</b><span>${esc(label)}</span></div></div>
+            `).join('');
+
+            const out = state.selected === 0 ? companySummary() : personContent(state.selected - 1);
+            $('rd-report-content').innerHTML = out.html;
+            $('rd-section-nav').innerHTML = out.sections.map(([id, label, icon]) => `
+                <button type="button" class="rd-section-link" data-section="rd-section-${id}">${ico(icon)} ${esc(label)}</button>
+            `).join('');
+            $('rd-results-desc').textContent = state.selected === 0
+                ? `1 empresa localizada · ${qsa.length} sócio(s) no QSA · ${totalSocsWithData} titular(es) enriquecido(s) (nome3 + CPF completo).`
+                : `Titular ${state.selected} de ${qsa.length}: ${qsa[state.selected - 1]?.nome_socio || ''}`;
+            if (!state.expanded) {
+                document.querySelectorAll('#rd-report-content .rd-card').forEach(c => { c.open = false; });
+            }
+        }
+
+        render();
+
+        $('rd-people').addEventListener('click', e => {
+            const b = e.target.closest('[data-person]');
+            if (!b) return;
+            state.selected = Number(b.dataset.person);
+            render();
+        });
+        $('rd-section-nav').addEventListener('click', e => {
+            const b = e.target.closest('[data-section]');
+            if (!b) return;
+            const target = $(b.dataset.section);
+            if (target) {
+                target.open = true;
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+        $('rd-report-content').addEventListener('click', async e => {
+            const b = e.target.closest('[data-person],[data-copy-request]');
+            if (!b) return;
+            if (b.dataset.person !== undefined) {
+                state.selected = Number(b.dataset.person);
+                render();
+                $('rd-report-content').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else if (b.dataset.copyRequest) {
+                window.uiCopy(b.dataset.copyRequest);
+            }
+        });
+        $('rd-filter').addEventListener('input', () => {
+            const q = $('rd-filter').value.trim().toLocaleLowerCase('pt-BR');
+            document.querySelectorAll('#rd-report-content .rd-card').forEach(c => {
+                const match = !q || c.textContent.toLocaleLowerCase('pt-BR').includes(q);
+                c.classList.toggle('rd-hide', !match);
+                if (q && match) c.open = true;
+            });
+        });
+        $('rd-mask').addEventListener('click', () => {
+            state.unmask = !state.unmask;
+            $('rd-mask').innerHTML = `${ico(state.unmask ? 'eyeoff' : 'eye')}<span>${state.unmask ? 'Ocultar dados' : 'Mostrar dados'}</span>`;
+            render();
+        });
+        $('rd-expand').addEventListener('click', () => {
+            state.expanded = !state.expanded;
+            $('rd-expand').querySelector('span').textContent = state.expanded ? 'Recolher tudo' : 'Expandir tudo';
+            document.querySelectorAll('#rd-report-content .rd-card').forEach(d => { d.open = state.expanded; });
+        });
+        $('rd-print').addEventListener('click', () => {
+            const pdfSections = [
+                {
+                    title: '1. IDENTIFICACAO E CADASTRO EMPRESARIAL',
+                    rows: [
+                        ['Razao Social', co.razao_social],
+                        ['Nome Fantasia', co.nome_fantasia],
+                        ['CNPJ', fmtCnpj(co.cnpj)],
+                        ['Situacao Cadastral', co.descricao_situacao_cadastral || co.situacao_cadastral],
+                        ['Data de Abertura', fmtDate(co.data_inicio_atividade)],
+                        ['Porte', co.porte || co.descricao_porte],
+                        ['Natureza Juridica', co.natureza_juridica],
+                        ['Capital Social', money(co.capital_social)],
+                        ['CNAE Principal', `${co.cnae_fiscal || ''} - ${co.cnae_fiscal_descricao || ''}`],
+                        ['Endereco', `${[co.descricao_tipo_de_logradouro, co.logradouro, co.numero, co.complemento].filter(Boolean).join(', ')} - ${co.bairro || ''} - ${co.municipio || ''}/${co.uf || ''} - CEP ${co.cep || ''}`],
+                        ['Telefone / E-mail', `${co.ddd_telefone_1 || 'Nao informado'} / ${co.email || 'Nao informado'}`],
+                    ]
+                }
+            ];
+            qsa.forEach((p, idxS) => {
+                const dp = p.dados_pessoais || p.dados_cpf || {};
+                const tels = Array.isArray(p.telefones) && p.telefones.length ? p.telefones : (Array.isArray(dp.phones) ? dp.phones : []);
+                const ems = Array.isArray(dp.emails) ? dp.emails.map(x => typeof x === 'object' ? (x.email || x.address) : x) : (dp.email ? [dp.email] : []);
+                const addrs = Array.isArray(dp.all_addresses) ? dp.all_addresses : (dp.address ? [dp.address] : []);
+                const addrStr = addrs.slice(0, 3).map(a => `${[a.type, a.street || a.logradouro, a.number || a.numero].filter(Boolean).join(' ')}, ${a.neighborhood || a.bairro || ''} - ${a.city || a.municipio || ''}/${a.state || a.uf || ''} (${a.zip_code || a.cep || ''})`).join(' | ');
+                const emps = Array.isArray(p.empresas_vinculadas) ? p.empresas_vinculadas : [];
+                const empStr = emps.map(e => `${e.razao_social || ''} (${fmtCnpj(e.cnpj || '')} - ${e.situacao || ''})`).join(' | ');
+                pdfSections.push({
+                    title: `TITULAR ${idxS + 1}: ${p.nome_socio || 'SOCIO'} (${p.qualificacao_socio || 'Socio'})`,
+                    rows: [
+                        ['Nome do Titular', dp.name || dp.nome || p.nome_socio],
+                        ['CPF Completo', fmtCpf(p.cpf_completo || dp.cpf || p.cnpj_cpf_do_socio)],
+                        ['Data de Nascimento', fmtDate(dp.birth_date || dp.nascimento || dp.dataNascimento)],
+                        ['Sexo', dp.gender || dp.sexo],
+                        ['Nome da Mae', dp.mother_name || dp.nome_mae || dp.nomeMae],
+                        ['RG / PIS / Titulo', `RG: ${dp.rg || '-'} | PIS: ${dp.pis || '-'} | Titulo: ${dp.voter_id || dp.titulo_eleitor || '-'}`],
+                        ['Profissao / Renda', `${dp.occupation || dp.profissao || '-'} | Renda: ${money(dp.income || dp.renda)}`],
+                        ['Score Credito', `CSB8: ${dp.score?.csb8 || dp.score?.CSB8 || dp.score?.value || '-'} (${dp.score?.csb8_range || dp.score?.range || '-'}) | CSBA: ${dp.score?.csba || dp.score?.CSBA || '-'}`],
+                        ['Telefones', tels.length ? tels.join(', ') : 'Nenhum telefone retornado'],
+                        ['E-mails', ems.length ? ems.join(', ') : 'Nenhum e-mail retornado'],
+                        ['Enderecos', addrStr || 'Nenhum endereco retornado'],
+                        ['Outras Empresas Vinculadas', empStr || 'Nenhuma outra empresa vinculada'],
+                    ]
+                });
+            });
+            downloadFormattedPdf(
+                `Relatorio CNPJ + Titulares - ${co.razao_social || fmtCnpj(co.cnpj)}`,
+                `CNPJ: ${fmtCnpj(co.cnpj)} | Situacao: ${co.descricao_situacao_cadastral || 'ATIVA'} | Socios no QSA: ${qsa.length}`,
+                pdfSections,
+                `relatorio_cnpj_titulares_${digits(co.cnpj) || 'empresa'}.pdf`
+            );
+        });
+        $('rd-json').addEventListener('click', () => {
+            window.uiDownload(`consulta-cnpj-titulares-${digits(co.cnpj)}.json`, JSON.stringify(co, null, 2), 'application/json;charset=utf-8');
+        });
+        $('rd-csv').addEventListener('click', () => {
+            const head = ['tipo', 'nome', 'documento', 'qualificacao', 'situacao', 'municipio', 'uf', 'telefones'];
+            const rows = [
+                ['EMPRESA', co.razao_social, co.cnpj, '', co.descricao_situacao_cadastral, co.municipio, co.uf, co.ddd_telefone_1 || ''],
+                ...qsa.map(p => ['SOCIO', p.nome_socio, p.cpf_completo || p.dados_pessoais?.cpf || p.cnpj_cpf_do_socio, p.qualificacao_socio, '', co.municipio, co.uf, (p.telefones || []).join(', ')]),
+            ];
+            const csv = '\ufeff' + [head, ...rows].map(r => r.map(v => '"' + String(v ?? '').replaceAll('"', '""') + '"').join(';')).join('\r\n');
+            window.uiDownload(`consulta-cnpj-${digits(co.cnpj)}.csv`, csv, 'text/csv;charset=utf-8');
+        });
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // RENDERER 3: ESTRUTURA GERAL PARA DEMAIS MÓDULOS (consulta_resultados.html)
+    // ══════════════════════════════════════════════════════════════════
+    function renderGeneralStructuredReport(payload, mod) {
+        const raw = payload.raw_response || payload.data || {};
+        let rows = Array.isArray(payload.rows) && payload.rows.length ? payload.rows : [];
+        if (!rows.length && payload.data && typeof payload.data === 'object') {
+            if (Array.isArray(payload.data.data)) rows = payload.data.data;
+            else if (Array.isArray(payload.data.body)) rows = payload.data.body;
+            else if (Array.isArray(payload.data.results)) rows = payload.data.results;
+            else rows = [payload.data];
+        }
+        const extraEmpresas = payload.lists?.empresas_vinculadas || payload.data?.empresas_vinculadas || [];
+
+        const state = { selected: 0, unmask: true, expanded: true };
+        const mount = $('rd-results-mount');
+        mount.innerHTML = `
+            <section aria-live="polite" id="rd-results">
+                <div class="rd-results-title">
+                    <div>
+                        <span class="rd-eyebrow">CONSULTA REALIZADA · ${esc((mod?.label || payload.module || '').toUpperCase())}</span>
+                        <h2>Resultados encontrados</h2>
+                        <p id="rd-results-desc">${rows.length} registro(s) retornado(s) em ${payload.time_ms || 0} ms.</p>
+                    </div>
+                    <div class="rd-actions">
+                        <button class="rd-btn" id="rd-mask" type="button">${ico('eyeoff')}<span>Ocultar dados</span></button>
+                        <button class="rd-btn" id="rd-expand" type="button">${ico('expand')}<span>Recolher tudo</span></button>
+                        <button class="rd-btn" id="rd-print" type="button">${ico('printer')}PDF</button>
+                        <button class="rd-btn" id="rd-csv" type="button">${ico('download')}CSV</button>
+                        <button class="rd-btn accent" id="rd-json" type="button">${ico('download')}JSON</button>
+                    </div>
+                </div>
+                <div class="rd-stats" id="rd-stats"></div>
+                <div class="rd-report-search">
+                    ${ico('search')}
+                    <input aria-label="Buscar no relatório" autocomplete="off" id="rd-filter" placeholder="Buscar informações dentro deste relatório..." type="search"/>
+                </div>
+                <div class="rd-results-layout">
+                    <aside class="rd-person-sidebar rd-panel" id="rd-side">
+                        <div class="rd-side-caption">REGISTROS <span id="rd-person-count">${rows.length}</span></div>
+                        <div class="rd-people-list" id="rd-people"></div>
+                        <div class="rd-side-divider"></div>
+                        <div class="rd-side-caption section-index">NAVEGAÇÃO</div>
+                        <nav aria-label="Seções do relatório" class="rd-section-nav" id="rd-section-nav"></nav>
+                    </aside>
+                    <div class="rd-content" id="rd-report-content"></div>
+                </div>
+            </section>
+        `;
+
+        const maskVal = (s, kind) => {
+            const str = String(s ?? '');
+            if (state.unmask) return str;
+            if (kind === 'doc') return str.length > 5 ? str.slice(0, 3) + '.***.***-' + str.slice(-2) : '••••';
+            if (kind === 'phone') return str.length >= 8 ? str.slice(0, 2) + ' •••••-' + str.slice(-3) : '••••';
+            if (kind === 'email') { const i = str.indexOf('@'); return i > 1 ? str.slice(0, 2) + '••••@' + str.slice(i + 1) : '••••'; }
+            return str;
+        };
+        const cp = (v, kind = '') => {
+            const s = String(v ?? '');
+            return `<button type="button" class="rd-data-copy" data-copy="${esc(s)}"><span>${esc(kind ? maskVal(s, kind) : s)}</span>${ico('copy')}</button>`;
+        };
+        const kv = (label, value, kind = '') => {
+            if (isImageValue(value, label)) {
+                return `<div class="rd-kv rd-filterable" data-find="${esc(label)}"><span class="rd-key">${esc(label)}</span><div class="rd-value">${renderImagesGallery([{ src: toImageSrc(value), label }])}</div></div>`;
+            }
+            let view = '';
+            if (blank(value)) view = `<span class="rd-value muted">Não informado</span>`;
+            else if (typeof value === 'boolean') view = `<span class="rd-value ${value ? 'valid' : ''}">${value ? 'Sim' : 'Não'}</span>`;
+            else if (kind === 'money') view = `<span class="rd-value">${esc(money(value))}</span>`;
+            else if (kind === 'date') view = `<span class="rd-value">${esc(fmtDate(value))}</span>`;
+            else if (kind === 'doc' || kind === 'phone' || kind === 'email') view = `<span class="rd-value">${cp(value, kind)}</span>`;
+            else if (Array.isArray(value)) view = `<span class="rd-value">${esc(value.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(', '))}</span>`;
+            else if (typeof value === 'object') view = `<span class="rd-value">${esc(JSON.stringify(value))}</span>`;
+            else view = `<span class="rd-value">${esc(value)}</span>`;
+            return `<div class="rd-kv rd-filterable" data-find="${esc((label + ' ' + (typeof value === 'object' ? JSON.stringify(value) : value)).toLowerCase())}"><span class="rd-key">${esc(label)}</span>${view}</div>`;
+        };
+        const card = (id, title, icon, body, wide = false, open = true) =>
+            `<details class="rd-card ${wide ? 'wide' : ''}" id="rd-section-${id}" ${open ? 'open' : ''}><summary><span class="rd-title-left">${ico(icon)}${esc(title)}</span>${ico('chevron', 'rd-chevron')}</summary><div class="rd-card-body">${body}</div></details>`;
+
+        function buildRecordContent(p, idx) {
+            const title = p.nome || p.name || p.razao_social || p.placa || p.plate || p.logradouro || p.cep || `Registro #${idx + 1}`;
+            const docNum = p.cpf || p.cnpj || p.rg || p.placa || p.telefone || p.phone || p.cep || '';
+            const subLoc = [p.cidade || p.city || p.municipio || p.endereco?.municipio || p.address?.city, p.uf || p.state || p.endereco?.uf || p.address?.state].filter(Boolean).join(' / ');
+            const images = extractRecordImages(p);
+
+            const avatarHtml = images.length
+                ? `<img src="${esc(images[0].src)}" alt="Foto" style="width:58px;height:58px;border-radius:14px;object-fit:cover;border:1px solid var(--line)"/>`
+                : `<div class="rd-avatar">${esc(initials(title))}</div>`;
+
+            const profile = `
+                <div class="rd-profile">
+                    ${avatarHtml}
+                    <div class="rd-profile-info">
+                        <div class="rd-eyebrow">REGISTRO LOCALIZADO</div>
+                        <h2>${esc(title)}</h2>
+                        <div class="rd-profile-sub">
+                            ${docNum ? `<span class="rd-pill">${ico('id')} ${esc(maskVal(docNum, 'doc'))}</span>` : ''}
+                            ${subLoc ? `<span class="rd-pill">${ico('pin')} ${esc(subLoc)}</span>` : ''}
+                            ${(p.dataNascimento || p.nascimento || p.birth_date) ? `<span class="rd-pill">${ico('calendar')} ${esc(fmtDate(p.dataNascimento || p.nascimento || p.birth_date))}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="rd-profile-count">
+                        <b>${String(idx + 1).padStart(2, '0')} / ${String(rows.length).padStart(2, '0')}</b>
+                        <span>Registro selecionado</span>
+                    </div>
+                </div>
+            `;
+
+            const sections = [];
+            const usedKeys = new Set(['endereco', 'address', 'all_addresses', 'enderecos', 'phones', 'telefones', 'emails', 'empresas_vinculadas', 'empresas', 'veiculos', 'vehicles', 'detran_vehicles', 'parentes', 'vizinhos', 'fotos_disponiveis']);
+
+            // 1. Dados Principais
+            const mainPairs = [];
+            for (const [k, v] of Object.entries(p)) {
+                if (usedKeys.has(k) || isImageKey(k) || isImageValue(v, k)) continue;
+                if (v !== null && typeof v === 'object') continue;
+                const kind = /cpf|cnpj|rg|pis|nis|titulo|cep|cnh|renavam/i.test(k) ? 'doc'
+                    : /telefone|phone|celular|whatsapp/i.test(k) ? 'phone'
+                    : /email/i.test(k) ? 'email'
+                    : /renda|income|capital|valor|preco/i.test(k) ? 'money'
+                    : /nascimento|birth|data|date/i.test(k) ? 'date' : '';
+                mainPairs.push(kv(k.replace(/_/g, ' ').toUpperCase(), v, kind));
+            }
+            if (mainPairs.length) {
+                sections.push(['principais', 'Dados Cadastrais e Identificação', 'user', mainPairs.join(''), false]);
+            }
+
+            // 2. Endereços
+            const addrObjs = [p.endereco, p.address, ...(Array.isArray(p.enderecos) ? p.enderecos : []), ...(Array.isArray(p.all_addresses) ? p.all_addresses : [])].filter(x => x && typeof x === 'object');
+            if (addrObjs.length) {
+                const addrHtml = addrObjs.map((a, i) => `
+                    ${addrObjs.length > 1 ? `<div class="rd-subheading">Endereço ${i + 1}</div>` : ''}
+                    ${Object.entries(a).map(([ak, av]) => kv(ak.replace(/_/g, ' ').toUpperCase(), av)).join('')}
+                `).join('');
+                sections.push(['enderecos', `Endereços (${addrObjs.length})`, 'pin', addrHtml, false]);
+            }
+
+            // 3. Contatos (Telefones / E-mails)
+            const phones = [...(Array.isArray(p.phones) ? p.phones : []), ...(Array.isArray(p.telefones) ? p.telefones : []), p.telefone, p.phone].filter(Boolean);
+            const emails = [...(Array.isArray(p.emails) ? p.emails : []), p.email].filter(Boolean);
+            if (phones.length || emails.length) {
+                const pTokens = phones.map(x => typeof x === 'object' ? (x.telefone || x.numero || JSON.stringify(x)) : x);
+                const eTokens = emails.map(x => typeof x === 'object' ? (x.email || x.address || JSON.stringify(x)) : x);
+                const cHtml = `
+                    ${pTokens.length ? `<div class="rd-subheading">Telefones (${pTokens.length})</div><div class="rd-tokens">${pTokens.map(v => `<span class="rd-token">${ico('phone')}${cp(v, 'phone')}</span>`).join('')}</div>` : ''}
+                    ${eTokens.length ? `<div class="rd-subheading">E-mails (${eTokens.length})</div><div class="rd-tokens">${eTokens.map(v => `<span class="rd-token">${ico('mail')}${cp(v, 'email')}</span>`).join('')}</div>` : ''}
+                `;
+                sections.push(['contatos', 'Telefones e E-mails', 'phone', cHtml, true]);
+            }
+
+            // 4. Empresas vinculadas
+            const empList = [...(Array.isArray(p.empresas_vinculadas) ? p.empresas_vinculadas : []), ...(Array.isArray(p.empresas) ? p.empresas : []), ...(idx === 0 ? extraEmpresas : [])];
+            if (empList.length) {
+                const empHtml = `<div class="rd-business-list">${empList.map(e => `
+                    <div class="rd-business-item rd-filterable" data-find="${esc(JSON.stringify(e).toLowerCase())}">
+                        <div class="rd-business-head">
+                            <div>
+                                <div class="rd-business-title">${esc(e.nome_fantasia || e.razao_social || 'Empresa')}</div>
+                                <div class="rd-business-meta">${esc(e.razao_social || '')} · ${esc(fmtCnpj(e.cnpj || ''))}</div>
+                            </div>
+                            <span class="rd-pill ${e.situacao === 'ATIVA' ? 'good' : ''}">${esc(e.situacao || 'VÍNCULO')}</span>
+                        </div>
+                        <div style="margin-top:.5rem">${[
+                            kv('CNPJ', fmtCnpj(e.cnpj), 'doc'),
+                            kv('Qualificação / Vínculo', e.qualificacao || e.socio_qualificacao || e.vinculo),
+                            kv('Porte', e.porte),
+                            kv('Capital Social', e.capital_social, 'money'),
+                            kv('CNAE', e.cnae_descricao || e.cnae_principal),
+                            kv('Município / UF', [e.municipio, e.uf].filter(Boolean).join(' / ')),
+                            kv('Telefone', e.telefone_1 || e.telefone, 'phone'),
+                            kv('E-mail', e.email, 'email')
+                        ].join('')}</div>
+                    </div>
+                `).join('')}</div>`;
+                sections.push(['empresas', `Empresas Vinculadas (${empList.length})`, 'building', empHtml, true]);
+            }
+
+            // 5. Fotos / Imagens (sempre renderizando <img> e preferindo links)
+            if (images.length) {
+                sections.push(['fotos', `Fotos e Imagens (${images.length})`, 'user', renderImagesGallery(images), true]);
+            }
+
+            // 6. Outros objetos ou tabelas aninhadas
+            for (const [k, v] of Object.entries(p)) {
+                if (usedKeys.has(k) || isImageKey(k) || v === null || typeof v !== 'object') continue;
+                if (Array.isArray(v) && v.length) {
+                    if (typeof v[0] === 'object' && v[0] !== null) {
+                        const cols = Object.keys(v[0]).filter(ck => !isImageKey(ck) && typeof v[0][ck] !== 'object').slice(0, 8);
+                        if (cols.length) {
+                            const tbl = `<div class="cpf-tablewrap"><table class="cpf-table"><thead><tr>${cols.map(c => `<th>${esc(c.toUpperCase())}</th>`).join('')}</tr></thead><tbody>${v.map(row => `<tr>${cols.map(c => `<td>${esc(row[c] ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+                            sections.push([`arr-${k}`, `${k.replace(/_/g, ' ').toUpperCase()} (${v.length})`, 'list', tbl, true]);
+                        }
+                    } else {
+                        sections.push([`arr-${k}`, `${k.replace(/_/g, ' ').toUpperCase()} (${v.length})`, 'list', `<div class="rd-tokens">${v.map(item => `<span class="rd-token">${esc(item)}</span>`).join('')}</div>`, false]);
+                    }
+                } else if (!Array.isArray(v)) {
+                    const subKv = Object.entries(v).filter(([sk, sv]) => !isImageValue(sv, sk)).map(([sk, sv]) => kv(sk.replace(/_/g, ' ').toUpperCase(), sv)).join('');
+                    if (subKv) sections.push([`obj-${k}`, k.replace(/_/g, ' ').toUpperCase(), 'list', subKv, false]);
+                }
+            }
+
+            sections.push(['json', 'Registro Original JSON', 'code', `<pre class="rd-codebox">${esc(JSON.stringify(p, null, 2))}</pre>`, true]);
+
+            return {
+                html: profile + `<div class="rd-cards">${sections.map(([id, label, icon, body, wide]) => card(id, label, icon, body, wide, state.expanded)).join('')}</div>`,
+                sections,
+            };
+        }
+
+        function render() {
+            $('rd-person-count').textContent = rows.length;
+            $('rd-people').innerHTML = rows.map((p, i) => {
+                const nm = p.nome || p.name || p.razao_social || p.placa || p.cep || `Registro #${i + 1}`;
+                const sub = p.cpf || p.cnpj || [p.cidade || p.municipio || p.city, p.uf || p.state].filter(Boolean).join(' / ') || mod?.label || '';
+                return `<button type="button" class="rd-person-choice ${i === state.selected ? 'active' : ''}" data-person="${i}" aria-pressed="${i === state.selected}">
+                    <span class="rd-mini-avatar">${esc(initials(nm))}</span>
+                    <span><strong>${esc(nm)}</strong><small>${esc(sub)}</small></span>
+                </button>`;
+            }).join('');
+
+            $('rd-stats').innerHTML = [
+                ['users', 'Registros localizados', rows.length],
+                ['building', 'Módulo', mod?.label || payload.module || 'Consulta'],
+                ['clock', 'Tempo de resposta', (payload.time_ms || 0) + ' ms'],
+            ].map(([icon, label, val]) => `<div class="rd-stat"><span class="rd-stat-icon">${ico(icon)}</span><div><b>${esc(val)}</b><span>${esc(label)}</span></div></div>`).join('');
+
+            const p = rows[state.selected];
+            if (!p) {
+                $('rd-report-content').innerHTML = '<div class="rd-empty-results">Nenhum registro retornado para os parâmetros informados.</div>';
+                $('rd-section-nav').innerHTML = '';
+                return;
+            }
+            const info = buildRecordContent(p, state.selected);
+            $('rd-report-content').innerHTML = info.html;
+            $('rd-section-nav').innerHTML = info.sections.map(([id, label, icon]) =>
+                `<button type="button" class="rd-section-link" data-section="rd-section-${id}">${ico(icon)} ${esc(label)}</button>`
+            ).join('');
+        }
+
+        render();
+
+        $('rd-people').addEventListener('click', e => {
+            const btn = e.target.closest('[data-person]');
+            if (!btn) return;
+            state.selected = Number(btn.dataset.person);
+            render();
+        });
+        $('rd-section-nav').addEventListener('click', e => {
+            const btn = e.target.closest('[data-section]');
+            if (!btn) return;
+            const d = $(btn.dataset.section);
+            if (d) {
+                d.open = true;
+                d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+        $('rd-report-content').addEventListener('click', e => {
+            const b = e.target.closest('[data-copy]');
+            if (b) window.uiCopy(b.dataset.copy);
+        });
+        $('rd-filter').addEventListener('input', () => {
+            const q = $('rd-filter').value.trim().toLocaleLowerCase('pt-BR');
+            document.querySelectorAll('#rd-report-content .rd-card').forEach(c => {
+                const match = !q || c.textContent.toLocaleLowerCase('pt-BR').includes(q);
+                c.classList.toggle('rd-hide', !match);
+                if (q && match) c.open = true;
+            });
+        });
+        $('rd-mask').addEventListener('click', () => {
+            state.unmask = !state.unmask;
+            $('rd-mask').innerHTML = `${ico(state.unmask ? 'eyeoff' : 'eye')}<span>${state.unmask ? 'Ocultar dados' : 'Mostrar dados'}</span>`;
+            render();
+        });
+        $('rd-expand').addEventListener('click', () => {
+            state.expanded = !state.expanded;
+            $('rd-expand').querySelector('span').textContent = state.expanded ? 'Recolher tudo' : 'Expandir tudo';
+            document.querySelectorAll('#rd-report-content .rd-card').forEach(d => { d.open = state.expanded; });
+        });
+        $('rd-print').addEventListener('click', () => {
+            const pdfSections = extractDomSectionsForPdf('#rd-report-content', '.rd-card', 'summary .rd-title-left', '.rd-kv', '.rd-key', '.rd-value, .rd-val');
+            const curRec = rows[state.selected] || {};
+            const recName = curRec.nome || curRec.name || curRec.razao_social || curRec.cpf || curRec.placa || mod?.label || 'Consulta';
+            downloadFormattedPdf(
+                `Relatorio de Consulta - ${mod?.label || payload.module}`,
+                `Registro: ${recName} | Total retornado: ${rows.length} registro(s)`,
+                pdfSections,
+                `relatorio_${payload.module || 'consulta'}.pdf`
+            );
+        });
+        $('rd-json').addEventListener('click', () => {
+            window.uiDownload(`consulta-${payload.module || 'dados'}.json`, JSON.stringify(raw, null, 2), 'application/json;charset=utf-8');
+        });
+        $('rd-csv').addEventListener('click', () => {
+            if (!rows.length) return;
+            const keys = [...new Set(rows.flatMap(r => Object.keys(r).filter(k => typeof r[k] !== 'object')))];
+            const lines = [keys.join(';'), ...rows.map(r => keys.map(k => '"' + String(r[k] ?? '').replaceAll('"', '""') + '"').join(';'))];
+            window.uiDownload(`consulta-${payload.module || 'dados'}.csv`, '\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+        });
+    }
+
+    // ── Histórico recente de consultas ──────────────────────────────
+    window.loadRecentLogs = async function() {
+        try {
+            const r = await fetch('/api/logs');
+            const logs = await r.json();
+            const tbody = $('recent-logs-tbody');
+            if (!logs.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="ux-empty">Nenhuma consulta realizada recentemente.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = logs.slice(0, 20).map(l => {
+                const m = MODS_BY_ID[l.module] || { label: l.module || l.endpoint };
+                return `<tr>
+                    <td style="font-size:.73rem">${(l.date || '').replace('T', ' ').slice(0, 19)}</td>
+                    <td><strong>${esc(m.label)}</strong></td>
+                    <td><code>${esc(l.query || '—')}</code></td>
+                    <td>${l.results ?? 0}</td>
+                    <td>${l.time_ms || 0} ms</td>
+                    <td><button type="button" class="ux-btn" style="padding:.3rem .6rem;font-size:.72rem" onclick="reopenHistory(${l.id}, '${esc(l.module)}')">Abrir resultado</button></td>
+                </tr>`;
+            }).join('');
+        } catch (e) {}
+    };
+
+    window.reopenHistory = async function(logId, modId) {
+        try {
+            const r = await fetch('/api/consulta', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ history_id: logId }),
+            });
+            const d = await r.json();
+            if (!r.ok || d.error) throw new Error(d.error || 'Resultado antigo indisponível');
+            const m = MODS_BY_ID[modId] || MODS_BY_ID[d.module] || uiMods[0];
+            openModuleView(m);
+            $('rd-validation').innerHTML = `${ico('check')} Resultado recuperado do histórico (#${logId}).`;
+            renderConsultationPayload(d, m);
+        } catch (err) {
+            toast(err.message, 'error');
+        }
+    };
+
+    renderCatalog();
+    loadRecentLogs();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,764 @@
+{% extends "base.html" %}
+{% block title %}Consulta em Massa (Lotes) · Admin{% endblock %}
+{% block page_id %}admin-batch{% endblock %}
+{% block topbar_title %}Admin · Consulta em Massa (Nome + Cidade → CPF Telefones){% endblock %}
+
+{% block content %}
+<div class="rd-page">
+    <div class="ux-head">
+        <div>
+            <span class="ux-eyebrow">EXCLUSIVO ADMINISTRADOR · ENRIQUECIMENTO EM 2 ETAPAS</span>
+            <h1>Consulta em Massa (Nome + Cidade → Telefones).</h1>
+            <p>Para cada registro da lista, executa <code>GET /api/v1/query/nome4</code> (armazenando todos os dados) e em seguida <code>GET /api/v1/query/cpf</code> com o CPF retornado para capturar os telefones, salvando em tempo real no banco de dados.</p>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <a href="/admin" class="ux-btn"><svg class="rd-ico" aria-hidden="true"><use href="#i-arrow-left"></use></svg> Voltar ao Admin</a>
+        </div>
+    </div>
+
+    <div class="ux-grid ux-gap" style="grid-template-columns:1.25fr 0.75fr;align-items:start">
+        <section class="ux-card pad">
+            <div class="ux-section-head">
+                <div>
+                    <h2><svg class="rd-ico" aria-hidden="true"><use href="#i-file"></use></svg> 1. Lista de Entrada (Colar texto ou enviar arquivo)</h2>
+                    <p>Formato esperado por linha: <code>REGISTRO;NOME COMPLETO;CIDADE-UF;SITUAÇÃO;REGIÃO</code> (CSV, TXT ou JSON).</p>
+                </div>
+                <span class="ux-pill accent">CPF Busca: nome4 + cpf</span>
+            </div>
+
+            <div class="ux-field" style="margin-bottom:.85rem">
+                <label class="ux-label" for="batch-text">Colar lista em texto (um registro por linha)</label>
+                <textarea class="ux-input" id="batch-text" rows="7" style="font-family:ui-monospace,Consolas,monospace;font-size:.76rem;line-height:1.55" placeholder="03019T;ISABEL CRISTINA MOREIRA CAMILO;GUARAMIRANGA-CE;Ativo;2a - CE&#10;03020T;FRANCISCO EUZANILO DA SILVA BARROS;MARANGUAPE-CE;Ativo;2a - CE&#10;03026T;FRANCISCO FABULO ALMEIDA MENDES;FORTALEZA-CE;Ativo;2a - CE"></textarea>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;padding:.75rem;border:1px dashed var(--line);border-radius:10px;background:var(--inset)">
+                <div style="flex:1;min-width:200px">
+                    <strong style="font-size:.78rem;display:block">Ou anexe um arquivo (CSV, TXT, JSON)</strong>
+                    <small class="ux-muted" id="batch-file-label">Nenhum arquivo selecionado (usando o campo de texto acima).</small>
+                </div>
+                <input type="file" id="batch-file-input" accept=".csv,.txt,.json" style="display:none" onchange="uploadBatchFile(this)"/>
+                <input type="hidden" id="batch-file-path" value=""/>
+                <button type="button" class="ux-btn" onclick="document.getElementById('batch-file-input').click()">
+                    <svg class="rd-ico" aria-hidden="true"><use href="#i-file"></use></svg> Escolher arquivo
+                </button>
+                <button type="button" class="ux-btn" onclick="clearBatchFile()">Limpar arquivo</button>
+            </div>
+        </section>
+
+        <section class="ux-card pad">
+            <div class="ux-section-head">
+                <div>
+                    <h2><svg class="rd-ico" aria-hidden="true"><use href="#i-sliders"></use></svg> 2. Intervalo e Limite de Requisição</h2>
+                    <p>Defina a partir de qual número e até qual número da lista consultar.</p>
+                </div>
+            </div>
+
+            <div class="ux-form-grid">
+                <div class="ux-field">
+                    <label class="ux-label" for="batch-start">A partir do nº da lista</label>
+                    <input class="ux-input" id="batch-start" type="number" min="1" value="1" placeholder="1"/>
+                </div>
+                <div class="ux-field">
+                    <label class="ux-label" for="batch-end">Até o nº da lista (0 = todos)</label>
+                    <input class="ux-input" id="batch-end" type="number" min="0" value="0" placeholder="0 (até o fim)"/>
+                </div>
+                <div class="ux-field">
+                    <label class="ux-label" for="batch-rpm">Limite Req./Min (API Rate Limit)</label>
+                    <input class="ux-input" id="batch-rpm" type="number" min="1" max="300" value="20"/>
+                </div>
+                <div class="ux-field">
+                    <label class="ux-label" for="batch-threads">Execução Paralela (Threads)</label>
+                    <input class="ux-input" id="batch-threads" type="number" min="1" max="10" value="2"/>
+                </div>
+            </div>
+
+            <div class="ux-note" style="margin-top:.85rem;font-size:.72rem">
+                Cada registro consome <strong>2 requisições</strong> na API CPF Busca (<code>/nome4</code> + <code>/cpf</code>) e é salvo imediatamente no banco de dados. Você pode pausar e continuar a qualquer momento.
+            </div>
+
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem">
+                <button type="button" class="ux-btn" onclick="previewBatch()">
+                    <svg class="rd-ico" aria-hidden="true"><use href="#i-eye"></use></svg> Pré-visualizar intervalo
+                </button>
+                <button type="button" class="ux-btn primary" id="btn-batch-start" onclick="startBatch()">
+                    <svg class="rd-ico" aria-hidden="true"><use href="#i-arrow"></use></svg> Iniciar Consulta em Massa
+                </button>
+                <button type="button" class="ux-btn" id="btn-batch-pause" onclick="pauseBatch()" style="display:none">
+                    ⏸ Pausar
+                </button>
+                <button type="button" class="ux-btn primary" id="btn-batch-resume" onclick="resumeActiveBatch()" style="display:none">
+                    ▶ Continuar
+                </button>
+                <button type="button" class="ux-btn" id="btn-batch-stop" onclick="stopBatch()" style="display:none;border-color:#ef4444;color:#ef4444">
+                    ⏹ Parar e Salvar
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Preview Section -->
+    <section class="ux-card pad ux-gap ux-hidden" id="batch-preview-card">
+        <div class="ux-section-head">
+            <div>
+                <h2>Pré-visualização da Lista</h2>
+                <p id="batch-preview-summary"></p>
+            </div>
+            <button type="button" class="ux-btn" onclick="document.getElementById('batch-preview-card').classList.add('ux-hidden')">Fechar prévia</button>
+        </div>
+        <div class="ux-tablewrap">
+            <table class="ux-table" id="batch-preview-table">
+                <thead><tr><th># Lista</th><th>Registro</th><th>Nome Completo</th><th>Cidade</th><th>UF</th><th>Situação / Região</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Custom Export Configurator (Columns, Filter & Format: CSV, TXT, JSON) -->
+    <section class="ux-card pad ux-gap" id="batch-export-config-card">
+        <div class="ux-section-head">
+            <div>
+                <h2><svg class="rd-ico" aria-hidden="true"><use href="#i-download"></use></svg> Exportação Personalizada de Dados (CSV, TXT e JSON)</h2>
+                <p>Escolha se deseja exportar apenas registros com telefone e selecione exatamente quais colunas incluir no arquivo.</p>
+            </div>
+            <div style="display:flex;gap:.45rem;flex-wrap:wrap">
+                <button type="button" class="ux-btn primary" onclick="exportCustomBatch('csv')"><svg class="rd-ico" aria-hidden="true"><use href="#i-download"></use></svg> Baixar CSV</button>
+                <button type="button" class="ux-btn primary" onclick="exportCustomBatch('txt')"><svg class="rd-ico" aria-hidden="true"><use href="#i-file"></use></svg> Baixar TXT</button>
+                <button type="button" class="ux-btn accent" onclick="exportCustomBatch('json')"><svg class="rd-ico" aria-hidden="true"><use href="#i-code"></use></svg> Baixar JSON</button>
+            </div>
+        </div>
+
+        <div class="ux-form-grid" style="margin-bottom:.85rem">
+            <div class="ux-field">
+                <label class="ux-label" for="export-filter-select">Filtro de Registros para Exportação</label>
+                <select class="ux-select" id="export-filter-select">
+                    <option value="with_phone">📞 Apenas registros QUE CONTÊM TELEFONE</option>
+                    <option value="all">Todos os registros do lote</option>
+                    <option value="ok">Apenas registros encontrados (com CPF)</option>
+                    <option value="empty">Apenas registros sem resultado</option>
+                    <option value="error">Apenas registros com erro</option>
+                </select>
+            </div>
+            <div class="ux-field">
+                <label class="ux-label">Atalhos de Seleção de Colunas</label>
+                <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+                    <button type="button" class="ux-btn" style="padding:.42rem .65rem;font-size:.72rem" onclick="setExportColumnsPreset('all')">Marcar todas</button>
+                    <button type="button" class="ux-btn" style="padding:.42rem .65rem;font-size:.72rem" onclick="setExportColumnsPreset('essential')">Essenciais + Telefones</button>
+                    <button type="button" class="ux-btn" style="padding:.42rem .65rem;font-size:.72rem" onclick="setExportColumnsPreset('phones_only')">Nome + CPF + Telefones</button>
+                    <button type="button" class="ux-btn" style="padding:.42rem .65rem;font-size:.72rem" onclick="setExportColumnsPreset('none')">Desmarcar todas</button>
+                </div>
+            </div>
+        </div>
+
+        <details open class="ux-card pad inset">
+            <summary style="cursor:pointer;font-weight:600;font-size:.8rem;color:var(--text)">Escolher colunas de dados para exportar (<span id="export-cols-count">25</span> selecionadas)</summary>
+            <div id="export-columns-grid" class="provider-section-grid" style="margin-top:.75rem"></div>
+        </details>
+    </section>
+
+    <!-- Live Progress & Paginated Current Job Results -->
+    <section class="ux-card pad ux-gap" id="batch-live-card">
+        <div class="ux-section-head">
+            <div>
+                <h2><svg class="rd-ico" aria-hidden="true"><use href="#i-clock"></use></svg> Acompanhamento da Execução <span class="ux-pill" id="live-job-badge">Aguardando</span></h2>
+                <p id="live-job-sub">Inicie um novo lote ou selecione um lote salvo abaixo para inspecionar, pausar, continuar ou exportar.</p>
+            </div>
+            <div style="display:flex;gap:.45rem;flex-wrap:wrap;align-items:center">
+                <label style="font-size:.74rem;color:var(--muted);display:flex;align-items:center;gap:.35rem">
+                    Por página:
+                    <select class="ux-select" id="batch-per-page" style="width:auto;padding:.35rem .6rem;font-size:.75rem" onchange="changePerPage(this.value)">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+
+        <div class="ux-grid four ux-gap" style="margin-bottom:.85rem">
+            <div class="ux-stat"><div><span>Progresso</span><strong id="st-progress">0 / 0</strong></div></div>
+            <div class="ux-stat"><div><span>Encontrados (nome4)</span><strong id="st-found">0</strong></div></div>
+            <div class="ux-stat"><div><span>Com Telefone (cpf)</span><strong id="st-with-phone">0</strong></div></div>
+            <div class="ux-stat"><div><span>Erros / Percentual</span><strong id="st-pct">0 / 0%</strong></div></div>
+        </div>
+
+        <div class="credit-bar" style="height:10px;margin-bottom:1rem">
+            <div class="fill" id="st-bar" style="width:0%"></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
+            <label class="ux-searchbox" style="max-width:360px">
+                <svg class="rd-ico" aria-hidden="true"><use href="#i-search"></use></svg>
+                <input type="search" id="live-search" placeholder="Pesquisar por nome, CPF, cidade ou telefone..." oninput="onSearchInput()"/>
+            </label>
+            <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+                <button type="button" class="ux-filter active" data-filt="all" onclick="setJobFilter('all', this)">Todos</button>
+                <button type="button" class="ux-filter" data-filt="with_phone" onclick="setJobFilter('with_phone', this)">📞 Com Telefone</button>
+                <button type="button" class="ux-filter" data-filt="ok" onclick="setJobFilter('ok', this)">Com CPF / Dados</button>
+                <button type="button" class="ux-filter" data-filt="empty" onclick="setJobFilter('empty', this)">Sem resultado</button>
+                <button type="button" class="ux-filter" data-filt="error" onclick="setJobFilter('error', this)">Erros</button>
+            </div>
+        </div>
+
+        <!-- Top Pagination Bar -->
+        <div id="batch-pagination-top" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.65rem"></div>
+
+        <div class="ux-tablewrap">
+            <table class="ux-table" id="batch-results-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Registro</th>
+                        <th>Nome Buscado / Encontrado</th>
+                        <th>Cidade / UF</th>
+                        <th>CPF Retornado</th>
+                        <th>Nascimento</th>
+                        <th>Telefones (2ª Consulta CPF)</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="batch-results-tbody">
+                    <tr><td colspan="9" class="ux-empty">Nenhum resultado exibido no momento.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Bottom Pagination Bar -->
+        <div id="batch-pagination-bottom" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.85rem"></div>
+    </section>
+
+    <!-- Stored Jobs History (Database) -->
+    <section class="ux-card pad">
+        <div class="ux-section-head">
+            <div>
+                <h2><svg class="rd-ico" aria-hidden="true"><use href="#i-database"></use></svg> Lotes Armazenados no Banco de Dados</h2>
+                <p>Histórico persistente de consultas em massa. Você pode retomar lotes pausados/interrompidos ou exportar com filtros a qualquer momento.</p>
+            </div>
+            <button type="button" class="ux-btn" onclick="loadJobs()"><svg class="rd-ico" aria-hidden="true"><use href="#i-refresh"></use></svg> Atualizar lista</button>
+        </div>
+        <div class="ux-tablewrap">
+            <table class="ux-table" id="batch-jobs-table">
+                <thead>
+                    <tr>
+                        <th>Job ID</th>
+                        <th>Início</th>
+                        <th>Intervalo</th>
+                        <th>Progresso</th>
+                        <th>Encontrados</th>
+                        <th>Erros</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="batch-jobs-tbody"></tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block dialogs %}
+<dialog class="modal wide" id="batch-detail-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+        <h3 id="bd-title" style="margin:0">Detalhes do Registro Enriquecido</h3>
+        <button type="button" class="btn-sm" onclick="document.getElementById('batch-detail-modal').close()">Fechar</button>
+    </div>
+    <div id="bd-body" style="max-height:70vh;overflow-y:auto;font-size:.82rem"></div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const uiEscape = window.uiEscape || (s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+window.uiEscape = uiEscape;
+
+const AVAILABLE_EXPORT_COLUMNS = [
+    ['item', 'Nº na Lista'],
+    ['registro', 'Registro Original'],
+    ['nome_busca', 'Nome Buscado'],
+    ['cidade_busca', 'Cidade Buscada'],
+    ['uf_busca', 'UF Buscada'],
+    ['cpf', 'CPF'],
+    ['nome_encontrado', 'Nome Encontrado'],
+    ['telefones', 'Telefones (2ª Consulta)'],
+    ['data_nascimento', 'Data de Nascimento'],
+    ['sexo', 'Sexo'],
+    ['nome_mae', 'Nome da Mãe'],
+    ['rg', 'RG'],
+    ['titulo_eleitor', 'Título de Eleitor'],
+    ['renda', 'Renda'],
+    ['profissao', 'Profissão'],
+    ['cbo', 'CBO'],
+    ['logradouro', 'Logradouro'],
+    ['numero', 'Número'],
+    ['complemento', 'Complemento'],
+    ['bairro', 'Bairro'],
+    ['cidade', 'Cidade Endereço'],
+    ['uf', 'UF Endereço'],
+    ['cep', 'CEP'],
+    ['status', 'Status da Consulta'],
+    ['tempo_ms', 'Tempo (ms)']
+];
+
+let currentJobId = null;
+let currentFilter = 'all';
+let currentPage = 1;
+let currentPerPage = 50;
+let totalPages = 1;
+let totalFilteredRecords = 0;
+let evtSource = null;
+let searchDebounce = null;
+let liveRefreshCounter = 0;
+
+function initExportColumnsUI() {
+    const grid = document.getElementById('export-columns-grid');
+    grid.innerHTML = AVAILABLE_EXPORT_COLUMNS.map(([key, label]) => `
+        <label class="mod-check" style="padding:.45rem .65rem">
+            <input type="checkbox" class="export-col-cb" value="${key}" checked onchange="updateExportColsCount()"/>
+            <span class="mod-label" style="font-size:.76rem">
+                ${uiEscape(label)}
+                <span class="mod-sub">${key}</span>
+            </span>
+        </label>
+    `).join('');
+    updateExportColsCount();
+}
+
+function updateExportColsCount() {
+    const checked = document.querySelectorAll('.export-col-cb:checked').length;
+    document.getElementById('export-cols-count').textContent = String(checked);
+}
+
+function setExportColumnsPreset(preset) {
+    const essential = new Set(['item', 'registro', 'nome_busca', 'cpf', 'nome_encontrado', 'data_nascimento', 'cidade', 'uf', 'telefones']);
+    const phonesOnly = new Set(['registro', 'nome_encontrado', 'cpf', 'telefones']);
+    document.querySelectorAll('.export-col-cb').forEach(cb => {
+        if (preset === 'all') cb.checked = true;
+        else if (preset === 'none') cb.checked = false;
+        else if (preset === 'essential') cb.checked = essential.has(cb.value);
+        else if (preset === 'phones_only') cb.checked = phonesOnly.has(cb.value);
+    });
+    updateExportColsCount();
+}
+
+function getSelectedExportColumns() {
+    return [...document.querySelectorAll('.export-col-cb:checked')].map(cb => cb.value);
+}
+
+function exportCustomBatch(fmt, jobIdOverride = null) {
+    const targetJobId = jobIdOverride || currentJobId;
+    if (!targetJobId) {
+        toast('Selecione ou inicie um lote primeiro.', 'error');
+        return;
+    }
+    const cols = getSelectedExportColumns();
+    if (!cols.length) {
+        toast('Selecione pelo menos 1 coluna para exportar.', 'error');
+        return;
+    }
+    const filt = document.getElementById('export-filter-select').value || 'all';
+    const params = new URLSearchParams({
+        filter: filt,
+        format: fmt,
+        columns: cols.join(','),
+    });
+    window.location.href = `/api/batch/jobs/${targetJobId}/export?${params.toString()}`;
+}
+
+async function uploadBatchFile(input) {
+    if (!input.files || !input.files[0]) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    try {
+        const r = await fetch('/api/upload', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.error || 'Falha no upload');
+        document.getElementById('batch-file-path').value = d.path;
+        document.getElementById('batch-file-label').textContent = 'Arquivo carregado: ' + d.filename;
+        toast('Arquivo carregado com sucesso!');
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function clearBatchFile() {
+    document.getElementById('batch-file-input').value = '';
+    document.getElementById('batch-file-path').value = '';
+    document.getElementById('batch-file-label').textContent = 'Nenhum arquivo selecionado (usando o campo de texto acima).';
+}
+
+function getBatchPayload() {
+    return {
+        file_path: document.getElementById('batch-file-path').value.trim(),
+        text: document.getElementById('batch-text').value.trim(),
+        start_from: Number(document.getElementById('batch-start').value) || 1,
+        end_at: Number(document.getElementById('batch-end').value) || 0,
+        rpm: Number(document.getElementById('batch-rpm').value) || 20,
+        threads: Number(document.getElementById('batch-threads').value) || 2,
+    };
+}
+
+async function previewBatch() {
+    const payload = getBatchPayload();
+    if (!payload.file_path && !payload.text) {
+        toast('Cole a lista em texto ou envie um arquivo primeiro.', 'error');
+        return;
+    }
+    const r = await fetch('/api/batch/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+        toast(d.error || 'Erro ao pré-visualizar', 'error');
+        return;
+    }
+    document.getElementById('batch-preview-card').classList.remove('ux-hidden');
+    document.getElementById('batch-preview-summary').textContent =
+        `Total na lista: ${d.total_in_list} registro(s) · Selecionados para consulta no intervalo: ${d.total_selected} registro(s) (exibindo até 25 primeiros).`;
+    document.querySelector('#batch-preview-table tbody').innerHTML = d.preview.map(it => `
+        <tr>
+            <td><strong>#${it._row_index}</strong></td>
+            <td><code>${uiEscape(it.registro)}</code></td>
+            <td><strong>${uiEscape(it.nome)}</strong></td>
+            <td>${uiEscape(it.cidade)}</td>
+            <td><span class="ux-pill">${uiEscape(it.uf || '—')}</span></td>
+            <td>${uiEscape([it.situacao_lista, it.regiao_lista].filter(Boolean).join(' · '))}</td>
+        </tr>
+    `).join('');
+}
+
+function updateButtonsState(running, paused) {
+    document.getElementById('btn-batch-start').style.display = running ? 'none' : '';
+    document.getElementById('btn-batch-pause').style.display = (running && !paused) ? '' : 'none';
+    document.getElementById('btn-batch-resume').style.display = (running && paused) ? '' : 'none';
+    document.getElementById('btn-batch-stop').style.display = running ? '' : 'none';
+    const badge = document.getElementById('live-job-badge');
+    if (running && paused) {
+        badge.textContent = 'Pausado';
+        badge.className = 'ux-pill';
+    } else if (running) {
+        badge.textContent = 'Em execução';
+        badge.className = 'ux-pill accent';
+    }
+}
+
+async function startBatch() {
+    const payload = getBatchPayload();
+    if (!payload.file_path && !payload.text) {
+        toast('Cole a lista em texto ou envie um arquivo para iniciar.', 'error');
+        return;
+    }
+    const r = await fetch('/api/batch/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+        toast(d.error || 'Erro ao iniciar lote', 'error');
+        return;
+    }
+    currentJobId = d.job_id;
+    currentPage = 1;
+    document.getElementById('batch-results-tbody').innerHTML = '';
+    updateStatsUI(0, d.total, 0, 0, 0);
+    updateButtonsState(true, false);
+    document.getElementById('live-job-sub').textContent = `Executando Lote #${d.job_id} — salvando cada consulta imediatamente no banco de dados.`;
+    connectStream();
+    loadJobs();
+    toast(`Lote #${d.job_id} iniciado com ${d.total} registro(s)!`);
+}
+
+async function pauseBatch() {
+    const r = await fetch('/api/batch/pause', { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+        updateButtonsState(true, true);
+        loadJobs();
+        toast('Lote pausado. Clique em Continuar quando quiser retomar.');
+    } else {
+        toast(d.error || 'Erro ao pausar', 'error');
+    }
+}
+
+async function resumeActiveBatch() {
+    const r = await fetch('/api/batch/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: currentJobId }),
+    });
+    const d = await r.json();
+    if (r.ok) {
+        updateButtonsState(true, false);
+        connectStream();
+        loadJobs();
+        toast('Execução do lote retomada!');
+    } else {
+        toast(d.error || 'Erro ao retomar lote', 'error');
+    }
+}
+
+async function resumeStoredJob(jobId) {
+    const rpm = Number(document.getElementById('batch-rpm').value) || 20;
+    const threads = Number(document.getElementById('batch-threads').value) || 2;
+    const r = await fetch(`/api/batch/jobs/${jobId}/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rpm, threads }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+        toast(d.error || 'Não foi possível continuar este lote', 'error');
+        return;
+    }
+    currentJobId = jobId;
+    currentPage = 1;
+    await inspectJob(jobId, 1);
+    updateButtonsState(true, false);
+    connectStream();
+    loadJobs();
+    toast(`Continuando Lote #${jobId}!`);
+}
+
+async function stopBatch() {
+    await fetch('/api/batch/stop', { method: 'POST' });
+    updateButtonsState(false, false);
+    document.getElementById('live-job-badge').textContent = 'Interrompido (Salvo)';
+    loadJobs();
+    toast('Solicitação de parada enviada. Todos os registros processados já estão salvos.');
+}
+
+function updateStatsUI(done, total, found, errors, withPhone = null) {
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    document.getElementById('st-progress').textContent = `${done} / ${total}`;
+    document.getElementById('st-found').textContent = String(found);
+    if (withPhone !== null) {
+        document.getElementById('st-with-phone').textContent = String(withPhone);
+    }
+    document.getElementById('st-pct').textContent = `${errors} erro(s) · ${pct}%`;
+    document.getElementById('st-bar').style.width = `${pct}%`;
+}
+
+function renderResultRow(r) {
+    const statusCls = r.status === 'OK' ? 'accent' : '';
+    const phonesHtml = r.telefones
+        ? `<div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap"><span style="font-family:ui-monospace,monospace;font-size:.73rem">${uiEscape(r.telefones)}</span><button type="button" class="ux-btn" style="padding:.2rem .45rem;font-size:.66rem" onclick="window.uiCopy('${uiEscape(r.telefones)}')">Copiar</button></div>`
+        : '<span class="ux-muted">Nenhum telefone</span>';
+    return `<tr class="batch-row-item">
+        <td><strong>#${r.row_index || ''}</strong></td>
+        <td><code>${uiEscape(r.registro || '')}</code></td>
+        <td><strong>${uiEscape(r.nome_encontrado || r.nome_busca || '')}</strong></td>
+        <td>${uiEscape(r.cidade || r.cidade_busca || '')} ${r.uf_result || r.uf_busca ? '/ ' + uiEscape(r.uf_result || r.uf_busca) : ''}</td>
+        <td><code>${uiEscape(r.cpf || '—')}</code></td>
+        <td>${uiEscape(r.data_nascimento || '—')}</td>
+        <td>${phonesHtml}</td>
+        <td><span class="ux-pill ${statusCls}">${uiEscape(r.status || '')}</span></td>
+        <td>${r.id ? `<button type="button" class="ux-btn" style="padding:.3rem .55rem;font-size:.7rem" onclick="openResultDetail(${r.id})">Ver tudo</button>` : ''}</td>
+    </tr>`;
+}
+
+function renderPaginationControls() {
+    const html = `
+        <div style="font-size:.76rem;color:var(--muted)">
+            Exibindo página <strong>${currentPage}</strong> de <strong>${totalPages}</strong> · Total filtrado: <strong>${totalFilteredRecords}</strong> registro(s)
+        </div>
+        <div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">
+            <button type="button" class="ux-btn" style="padding:.32rem .6rem;font-size:.73rem" ${currentPage <= 1 ? 'disabled' : ''} onclick="goToBatchPage(1)">« Primeira</button>
+            <button type="button" class="ux-btn" style="padding:.32rem .6rem;font-size:.73rem" ${currentPage <= 1 ? 'disabled' : ''} onclick="goToBatchPage(${currentPage - 1})">‹ Anterior</button>
+            <span class="ux-pill accent" style="padding:.32rem .65rem">${currentPage} / ${totalPages}</span>
+            <button type="button" class="ux-btn" style="padding:.32rem .6rem;font-size:.73rem" ${currentPage >= totalPages ? 'disabled' : ''} onclick="goToBatchPage(${currentPage + 1})">Próxima ›</button>
+            <button type="button" class="ux-btn" style="padding:.32rem .6rem;font-size:.73rem" ${currentPage >= totalPages ? 'disabled' : ''} onclick="goToBatchPage(${totalPages})">Última »</button>
+        </div>
+    `;
+    document.getElementById('batch-pagination-top').innerHTML = html;
+    document.getElementById('batch-pagination-bottom').innerHTML = html;
+}
+
+function goToBatchPage(page) {
+    if (!currentJobId) return;
+    currentPage = Math.max(1, Math.min(page, totalPages));
+    inspectJob(currentJobId, currentPage);
+}
+
+function changePerPage(val) {
+    currentPerPage = Number(val) || 50;
+    currentPage = 1;
+    if (currentJobId) inspectJob(currentJobId, 1);
+}
+
+function onSearchInput() {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+        currentPage = 1;
+        if (currentJobId) inspectJob(currentJobId, 1);
+    }, 280);
+}
+
+function setJobFilter(filt, btn) {
+    currentFilter = filt;
+    currentPage = 1;
+    document.querySelectorAll('[data-filt]').forEach(b => b.classList.toggle('active', b === btn));
+    if (currentJobId) inspectJob(currentJobId, 1);
+}
+
+function connectStream() {
+    if (evtSource) evtSource.close();
+    evtSource = new EventSource('/api/batch/stream');
+    evtSource.onmessage = e => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'progress') {
+            updateStatsUI(msg.done, msg.total, msg.found, msg.errors);
+            liveRefreshCounter++;
+            if (currentJobId && (liveRefreshCounter % 2 === 0 || msg.done <= 5)) {
+                inspectJob(currentJobId, currentPage);
+            }
+        } else if (msg.type === 'done') {
+            updateStatsUI(msg.done || msg.total, msg.total, msg.found, msg.errors);
+            updateButtonsState(false, false);
+            document.getElementById('live-job-badge').textContent = msg.status === 'stopped' ? 'Pausado / Parado' : 'Concluído';
+            evtSource.close();
+            loadJobs();
+            if (currentJobId) inspectJob(currentJobId, currentPage);
+        }
+    };
+    evtSource.onerror = () => {
+        evtSource.close();
+    };
+}
+
+async function inspectJob(jobId, page = 1) {
+    currentJobId = jobId;
+    currentPage = page;
+    const q = encodeURIComponent(document.getElementById('live-search').value || '');
+    const r = await fetch(`/api/batch/jobs/${jobId}/results?filter=${currentFilter}&page=${currentPage}&per_page=${currentPerPage}&search=${q}`);
+    const d = await r.json();
+    if (!r.ok) return;
+    updateStatsUI(d.job.done, d.job.total, d.job.found, d.job.errors, d.job.with_phone ?? 0);
+    totalFilteredRecords = d.pagination.total || 0;
+    totalPages = d.pagination.total_pages || Math.max(1, Math.ceil(totalFilteredRecords / currentPerPage));
+    currentPage = d.pagination.page || 1;
+
+    document.getElementById('live-job-badge').textContent = `Lote #${d.job.id} (${d.job.status})`;
+    document.getElementById('live-job-sub').textContent =
+        `Visualizando Lote #${d.job.id} · Intervalo #${d.job.start_from} até #${d.job.end_at || d.job.total} · Com telefone: ${d.job.with_phone ?? 0} · Limite: ${d.job.rpm} req/min.`;
+    const tbody = document.getElementById('batch-results-tbody');
+    tbody.innerHTML = d.results.length
+        ? d.results.map(renderResultRow).join('')
+        : '<tr><td colspan="9" class="ux-empty">Nenhum registro encontrado para este filtro/página.</td></tr>';
+    renderPaginationControls();
+}
+
+async function openResultDetail(resultId) {
+    const r = await fetch(`/api/batch/results/${resultId}/detail`);
+    const d = await r.json();
+    if (!r.ok) {
+        toast(d.error || 'Erro ao carregar detalhes', 'error');
+        return;
+    }
+    const raw = d.raw_data || {};
+    const rec1 = raw.registro_nome4 || {};
+    const end1 = rec1.endereco || {};
+    document.getElementById('bd-title').textContent = `#${d.row_index} · ${d.nome_encontrado || d.nome_busca} (${d.cpf || 'Sem CPF'})`;
+    document.getElementById('bd-body').innerHTML = `
+        <div class="ux-card pad inset" style="margin-bottom:.75rem">
+            <span class="ux-eyebrow">TELEFONES CAPTURADOS (2ª CONSULTA: /CPF)</span>
+            <p style="font-family:ui-monospace,monospace;font-size:.88rem;color:var(--text);margin:.35rem 0">${uiEscape(d.telefones || 'Nenhum telefone retornado')}</p>
+            ${d.telefones ? `<button type="button" class="btn-sm primary" onclick="window.uiCopy('${uiEscape(d.telefones)}')">Copiar todos os telefones</button>` : ''}
+        </div>
+        <div class="ux-grid" style="margin-bottom:.75rem">
+            <div class="ux-card pad inset">
+                <span class="ux-eyebrow">1ª CONSULTA (NOME + CIDADE · /NOME4)</span>
+                <dl class="ux-kv">
+                    <dt>Registro Lista</dt><dd>${uiEscape(d.registro || '—')}</dd>
+                    <dt>Nome Encontrado</dt><dd>${uiEscape(d.nome_encontrado || '—')}</dd>
+                    <dt>CPF</dt><dd>${uiEscape(d.cpf || '—')}</dd>
+                    <dt>Data Nascimento</dt><dd>${uiEscape(d.data_nascimento || '—')}</dd>
+                    <dt>Sexo</dt><dd>${uiEscape(d.sexo || '—')}</dd>
+                    <dt>Nome da Mãe</dt><dd>${uiEscape(d.nome_mae || '—')}</dd>
+                    <dt>RG</dt><dd>${uiEscape(rec1.rg || '—')}</dd>
+                    <dt>Título Eleitor</dt><dd>${uiEscape(rec1.titulo_eleitor || '—')}</dd>
+                    <dt>Renda</dt><dd>${uiEscape(rec1.renda || '—')}</dd>
+                    <dt>Profissão / CBO</dt><dd>${uiEscape([rec1.profissao, rec1.cbo].filter(Boolean).join(' · ') || '—')}</dd>
+                </dl>
+            </div>
+            <div class="ux-card pad inset">
+                <span class="ux-eyebrow">ENDEREÇO RETORNADO (/NOME4)</span>
+                <dl class="ux-kv">
+                    <dt>Logradouro</dt><dd>${uiEscape([end1.logradouro, end1.logradouroNumero].filter(Boolean).join(', ') || '—')}</dd>
+                    <dt>Complemento</dt><dd>${uiEscape(end1.complemento || '—')}</dd>
+                    <dt>Bairro</dt><dd>${uiEscape(end1.bairro || '—')}</dd>
+                    <dt>Município / UF</dt><dd>${uiEscape([end1.municipio || d.cidade, end1.uf || d.uf_result].filter(Boolean).join(' / ') || '—')}</dd>
+                    <dt>CEP</dt><dd>${uiEscape(end1.cep || d.cep || '—')}</dd>
+                </dl>
+            </div>
+        </div>
+        <details class="ux-card pad inset">
+            <summary style="cursor:pointer;font-weight:600">JSON Completo Armazenado (1ª e 2ª Consultas)</summary>
+            <pre style="margin-top:.75rem;font-size:.73rem;overflow:auto;max-height:320px;background:var(--surface);padding:.75rem;border-radius:8px">${uiEscape(JSON.stringify(raw, null, 2))}</pre>
+        </details>
+    `;
+    document.getElementById('batch-detail-modal').showModal();
+}
+
+async function deleteJob(jobId) {
+    const ok = await showConfirm(`Tem certeza que deseja excluir o Lote #${jobId} e todos os seus registros salvos?`, {
+        title: 'Excluir Lote', ok: 'Excluir', danger: true
+    });
+    if (!ok) return;
+    await fetch(`/api/batch/jobs/${jobId}`, { method: 'DELETE' });
+    if (currentJobId === jobId) currentJobId = null;
+    loadJobs();
+    toast('Lote excluído.');
+}
+
+async function loadJobs() {
+    const r = await fetch('/api/batch/jobs');
+    const jobs = await r.json();
+    const tbody = document.getElementById('batch-jobs-tbody');
+    if (!jobs.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="ux-empty">Nenhum lote salvo no banco ainda.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = jobs.map(j => {
+        const canResume = j.status !== 'done' || j.done < j.total;
+        return `<tr>
+            <td><strong>#${j.id}</strong></td>
+            <td style="font-size:.73rem">${(j.started_at || '').replace('T', ' ').slice(0, 19)}</td>
+            <td>#${j.start_from || 1} → #${j.end_at || j.total}</td>
+            <td><strong>${j.done} / ${j.total}</strong></td>
+            <td>${j.found}</td>
+            <td>${j.errors}</td>
+            <td><span class="ux-pill ${j.status === 'done' ? 'accent' : ''}">${j.status}</span></td>
+            <td style="display:flex;gap:.35rem;flex-wrap:wrap">
+                <button type="button" class="ux-btn" style="padding:.3rem .6rem;font-size:.72rem" onclick="inspectJob(${j.id}, 1)">Abrir</button>
+                ${canResume ? `<button type="button" class="ux-btn primary" style="padding:.3rem .6rem;font-size:.72rem" onclick="resumeStoredJob(${j.id})">▶ Continuar</button>` : ''}
+                <button type="button" class="ux-btn" style="padding:.3rem .6rem;font-size:.72rem" onclick="exportCustomBatch('csv', ${j.id})">CSV</button>
+                <button type="button" class="ux-btn" style="padding:.3rem .6rem;font-size:.72rem" onclick="exportCustomBatch('txt', ${j.id})">TXT</button>
+                <button type="button" class="ux-btn" style="padding:.3rem .6rem;font-size:.72rem" onclick="exportCustomBatch('json', ${j.id})">JSON</button>
+                <button type="button" class="ux-btn" style="padding:.3rem .6rem;font-size:.72rem;color:#ef4444" onclick="deleteJob(${j.id})">Excluir</button>
+            </td>
+        </tr>`;
+    }).join('');
+    if (!currentJobId && jobs.length) {
+        inspectJob(jobs[0].id, 1);
+    }
+}
+
+(async function initBatchPage() {
+    initExportColumnsUI();
+    await loadJobs();
+    const r = await fetch('/api/batch/status');
+    const st = await r.json();
+    if (st.running && st.job_id) {
+        currentJobId = st.job_id;
+        updateStatsUI(st.done, st.total, st.found, st.errors);
+        updateButtonsState(st.running, st.paused);
+        await inspectJob(st.job_id, 1);
+        connectStream();
+    }
+})();
+</script>
+{% endblock %}

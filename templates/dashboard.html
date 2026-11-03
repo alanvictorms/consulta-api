@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRTR Admin</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
+<style>
+:root{--brand:#1a1a2e;--brand2:#16213e;--accent:#0f3460;--green:#00d68f;--bg:#0d1117;--card:#161b22;--card2:#1c2333;--txt:#e6edf3;--muted:#8b949e;--border:#30363d;--input-bg:#0d1117;--hover:#1f2937;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif;margin:0}
+.sidebar{width:230px;background:var(--brand);color:#fff;min-height:100vh;position:fixed;top:0;left:0;z-index:100;padding-top:0;display:flex;flex-direction:column;border-right:1px solid var(--border)}
+.sidebar .logo{padding:1rem;font-weight:700;font-size:1.1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;color:var(--green)}
+.sidebar .nav-link{color:rgba(255,255,255,.6);padding:.55rem 1rem;font-size:.85rem;display:flex;align-items:center;gap:.6rem;transition:.15s}
+.sidebar .nav-link:hover,.sidebar .nav-link.active{color:#fff;background:rgba(255,255,255,.08)}
+.main{margin-left:230px;padding:1.25rem}
+.topbar{display:flex;align-items:center;gap:1rem;margin-bottom:1rem}
+.topbar h2{font-size:1.15rem;font-weight:600;margin:0;color:var(--txt)}
+.card{border:1px solid var(--border);border-radius:.5rem;background:var(--card)}
+.card-h{padding:.6rem 1rem;font-weight:600;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;color:var(--txt)}
+.stat{text-align:center;padding:.75rem .5rem;background:var(--card2);border-radius:.5rem}
+.stat .n{font-size:1.6rem;font-weight:700;line-height:1}
+.stat .l{font-size:.7rem;color:var(--muted);text-transform:uppercase;margin-top:.2rem}
+.worker-card{border:1px solid var(--border);border-radius:.5rem;background:var(--card2);padding:.75rem;margin-bottom:.5rem}
+.worker-card .hdr{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem}
+.worker-card .hdr .reg{font-weight:700;font-size:.9rem;color:var(--green)}
+.worker-card .info{font-size:.78rem;color:var(--muted)}
+.worker-card .progress{height:5px;margin-top:.35rem;background:var(--border)}
+.badge-run{background:#362f00;color:#fbbf24}
+.badge-done{background:#052e16;color:#4ade80}
+.badge-stop{background:#1c1c1e;color:#a1a1aa}
+.badge-err{background:#350a0a;color:#f87171}
+.tbl-wrap{max-height:55vh;overflow-y:auto;border:1px solid var(--border);border-radius:.375rem;background:var(--card)}
+table{font-size:.8rem;margin:0;color:var(--txt);--bs-table-bg:var(--card);--bs-table-color:var(--txt);--bs-table-border-color:var(--border);--bs-table-striped-bg:var(--card2);--bs-table-hover-bg:var(--hover);--bs-table-hover-color:var(--txt)}
+table th{position:sticky;top:0;background:var(--card2)!important;z-index:2;cursor:pointer;user-select:none;white-space:nowrap;color:var(--muted);border-bottom:1px solid var(--border)!important}
+table th:hover{color:var(--green)}
+table td{border-color:var(--border)!important;background:var(--card)!important;color:var(--txt)!important}
+.table-hover>tbody>tr:hover>td{background:var(--hover)!important;color:var(--txt)!important}
+.badge-sit{font-size:.7rem;padding:.25em .55em}
+.sit-ativo{background:#052e16;color:#4ade80}
+.sit-cancelado{background:#350a0a;color:#f87171}
+.sit-suspenso{background:#362f00;color:#fbbf24}
+.sit-default{background:#1c1c1e;color:#a1a1aa}
+#log{max-height:150px;overflow-y:auto;font-size:.75rem;font-family:Consolas,monospace;background:#010409;color:#cdd6f4;padding:.5rem;border-radius:.375rem;border:1px solid var(--border)}
+.log-t{color:#484f58}.log-ok{color:#3fb950}.log-err{color:#f85149}.log-info{color:#58a6ff}
+.search-box{position:relative}
+.search-box i{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--muted)}
+.search-box input{padding-left:2rem;font-size:.82rem}
+.tab-section{display:none}.tab-section.active{display:block}
+.form-select,.form-control{background:var(--input-bg)!important;color:var(--txt)!important;border-color:var(--border)!important}
+.form-select:focus,.form-control:focus{box-shadow:0 0 0 2px rgba(0,214,143,.25)!important;border-color:var(--green)!important}
+.form-select option{background:var(--card);color:var(--txt)}
+.form-label,.small{color:var(--muted)!important}
+.btn-outline-secondary{color:var(--muted);border-color:var(--border)}
+.btn-outline-secondary:hover{background:var(--hover);color:var(--txt);border-color:var(--muted)}
+.btn-outline-danger{color:#f87171;border-color:#5c2020}
+.btn-outline-danger:hover{background:#350a0a;color:#f87171;border-color:#f87171}
+.btn-outline-success{color:#4ade80;border-color:#1a4d2e}
+.btn-outline-success:hover{background:#052e16;color:#4ade80;border-color:#4ade80}
+.text-muted{color:var(--muted)!important}
+.progress{background:var(--border)}
+@media(max-width:768px){.sidebar{display:none}.main{margin-left:0}}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo"><i class="bi bi-clipboard2-pulse"></i> CRTR Admin</div>
+  <nav>
+    <a class="nav-link active" href="#" onclick="showTab('consultas')"><i class="bi bi-search"></i> Consultas</a>
+    <a class="nav-link" href="#" onclick="showTab('dados')"><i class="bi bi-database"></i> Dados Salvos</a>
+    <a class="nav-link" href="#" onclick="showTab('historico')"><i class="bi bi-clock-history"></i> Historico</a>
+  </nav>
+  <div class="mt-auto p-3" style="font-size:.7rem;color:rgba(255,255,255,.25)">
+    CRTR Scraper v3.0
+  </div>
+</div>
+
+<div class="main">
+
+<!-- TAB: CONSULTAS -->
+<div id="tab-consultas" class="tab-section active">
+  <div class="topbar">
+    <h2><i class="bi bi-search me-2"></i>Consultas Simultaneas</h2>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-h"><i class="bi bi-play-circle"></i> Iniciar Consultas</div>
+    <div class="p-2">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label mb-0 small">Selecione as Regioes (multiplas)</label>
+          <select id="selRegioes" class="form-select form-select-sm" multiple size="6">
+            {% for rid, info in regioes.items() %}
+            <option value="{{ rid }}">CRTR{{ rid }} - {{ info.nome }}</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted">Segure Ctrl para selecionar varias</small>
+        </div>
+        <div class="col-md-3">
+          <button class="btn btn-sm w-100 mb-1" style="background:var(--green);color:#000;font-weight:600" onclick="startSelected()">
+            <i class="bi bi-play-fill"></i> Iniciar Selecionadas
+          </button>
+          <button class="btn btn-outline-secondary btn-sm w-100 mb-1" onclick="selectAllRegioes()">
+            <i class="bi bi-check-all"></i> Selecionar Todas
+          </button>
+          <button class="btn btn-outline-danger btn-sm w-100" onclick="stopAll()">
+            <i class="bi bi-stop-fill"></i> Parar Todas
+          </button>
+        </div>
+        <div class="col-md-3">
+          <div class="stat">
+            <div class="n" id="totalGeral" style="color:var(--green)">0</div>
+            <div class="l">Total no Banco</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-2 mb-3" id="workersGrid"></div>
+
+  <div class="card mb-3">
+    <div class="card-h">
+      <i class="bi bi-table"></i> Resultados em Tempo Real
+      <span class="badge bg-secondary ms-1" id="liveCount">0</span>
+      <div class="ms-auto d-flex gap-2">
+        <div class="search-box" style="width:220px">
+          <i class="bi bi-search"></i>
+          <input type="text" id="liveFilter" class="form-control form-control-sm" placeholder="Filtrar..." oninput="filterLive()">
+        </div>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="liveTableWrap">
+      <table class="table table-hover table-sm">
+        <thead>
+          <tr>
+            <th style="width:40px">#</th>
+            <th style="width:80px" onclick="sortLive(1)">Regiao</th>
+            <th style="width:120px" onclick="sortLive(2)">N. Registro</th>
+            <th onclick="sortLive(3)">Nome / Razao Social</th>
+            <th style="width:170px" onclick="sortLive(4)">Cidade</th>
+            <th style="width:100px" onclick="sortLive(5)">Situacao</th>
+          </tr>
+        </thead>
+        <tbody id="liveBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><i class="bi bi-terminal"></i> Log <button class="btn btn-sm btn-link ms-auto py-0" onclick="clearLog()">Limpar</button></div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<!-- TAB: DADOS -->
+<div id="tab-dados" class="tab-section">
+  <div class="topbar">
+    <h2><i class="bi bi-database me-2"></i>Dados Salvos</h2>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-h"><i class="bi bi-funnel"></i> Filtros</div>
+    <div class="p-2">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label mb-0 small">Regiao</label>
+          <select id="dadosRegiao" class="form-select form-select-sm" onchange="loadDados()">
+            <option value="">Todas</option>
+            {% for rid, info in regioes.items() %}
+            <option value="{{ rid }}">CRTR{{ rid }} - {{ info.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-outline-secondary btn-sm" onclick="loadDados()"><i class="bi bi-arrow-clockwise"></i> Atualizar</button>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-outline-success btn-sm" onclick="exportDados()"><i class="bi bi-download"></i> Exportar CSV</button>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-outline-danger btn-sm" onclick="deleteDados()"><i class="bi bi-trash"></i> Limpar Dados</button>
+        </div>
+        <div class="col-auto ms-auto">
+          <span class="badge bg-primary" id="dadosCount" style="font-size:.85rem">0 registros</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tbl-wrap" style="max-height:65vh">
+      <table class="table table-hover table-sm">
+        <thead>
+          <tr>
+            <th style="width:40px">#</th>
+            <th style="width:80px">Regiao</th>
+            <th style="width:120px">N. Registro</th>
+            <th>Nome / Razao Social</th>
+            <th style="width:170px">Cidade</th>
+            <th style="width:100px">Situacao</th>
+          </tr>
+        </thead>
+        <tbody id="dadosBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: HISTORICO -->
+<div id="tab-historico" class="tab-section">
+  <div class="topbar">
+    <h2><i class="bi bi-clock-history me-2"></i>Historico de Consultas</h2>
+    <button class="btn btn-outline-secondary btn-sm ms-auto" onclick="loadStats()"><i class="bi bi-arrow-clockwise"></i></button>
+  </div>
+
+  <div class="row g-3 mb-3" id="regStatsRow"></div>
+
+  <div class="card">
+    <div class="card-h"><i class="bi bi-list-check"></i> Consultas Recentes</div>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>ID</th><th>Regiao</th><th>Status</th><th>Encontrados</th><th>Novos</th><th>Prefixo</th><th>Inicio</th><th>Fim</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const REGIOES = {{ regioes | tojson }};
+let liveRows = [];
+let evtSrc = null;
+
+function showTab(name) {
+  document.querySelectorAll('.tab-section').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('.sidebar .nav-link').forEach(el => el.classList.remove('active'));
+  event.target.closest('.nav-link').classList.add('active');
+  if (name === 'dados') loadDados();
+  if (name === 'historico') loadStats();
+}
+
+function regLabel(id) {
+  const r = REGIOES[id];
+  return r ? r.nome : id;
+}
+
+function selectAllRegioes() {
+  const sel = document.getElementById('selRegioes');
+  for (let o of sel.options) o.selected = true;
+}
+
+function startSelected() {
+  const sel = document.getElementById('selRegioes');
+  const ids = Array.from(sel.selectedOptions).map(o => o.value);
+  if (!ids.length) { showAlert('Selecione pelo menos uma região','warn'); return; }
+
+  fetch('/api/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ regioes: ids })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.started && d.started.length) {
+      d.started.forEach(rid => {
+        addWorkerCard(rid);
+        addLog('[CRTR' + rid + '] Consulta iniciada', 'ok');
+      });
+      listenStream();
+    }
+  });
+}
+
+function stopAll() {
+  fetch('/api/stop', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({regiao:'ALL'}) });
+  addLog('Parando todas as consultas...', 'err');
+}
+
+function stopOne(rid) {
+  fetch('/api/stop', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({regiao: rid}) });
+  addLog('[CRTR' + rid + '] Parando...', 'err');
+}
+
+function addWorkerCard(rid) {
+  const grid = document.getElementById('workersGrid');
+  if (document.getElementById('wk-' + rid)) {
+    const card = document.getElementById('wk-' + rid);
+    card.querySelector('.badge').className = 'badge badge-run';
+    card.querySelector('.badge').textContent = 'Rodando';
+    return;
+  }
+  const col = document.createElement('div');
+  col.className = 'col-md-4 col-lg-3';
+  col.innerHTML = `
+    <div class="worker-card" id="wk-${rid}">
+      <div class="hdr">
+        <span class="reg">CRTR${rid} - ${regLabel(rid)}</span>
+        <span class="badge badge-run">Rodando</span>
+        <button class="btn btn-sm btn-outline-danger ms-auto py-0 px-1" onclick="stopOne('${rid}')"><i class="bi bi-x"></i></button>
+      </div>
+      <div class="info">Prefixo: <strong id="wk-pfx-${rid}">---</strong></div>
+      <div class="info">Encontrados: <strong id="wk-total-${rid}">0</strong></div>
+      <div class="progress"><div class="progress-bar" id="wk-bar-${rid}" style="width:0%"></div></div>
+    </div>`;
+  grid.appendChild(col);
+}
+
+function listenStream() {
+  if (evtSrc) evtSrc.close();
+  evtSrc = new EventSource('/api/stream');
+  evtSrc.onmessage = function(e) {
+    const m = JSON.parse(e.data);
+    if (m.type === 'progress') {
+      const pfxEl = document.getElementById('wk-pfx-' + m.regiao);
+      if (pfxEl) pfxEl.textContent = m.prefix;
+      const bar = document.getElementById('wk-bar-' + m.regiao);
+      if (bar) {
+        const base = parseInt(m.prefix) || 0;
+        bar.style.width = Math.min((base / 999) * 100, 100).toFixed(1) + '%';
+      }
+    }
+    else if (m.type === 'batch') {
+      const totEl = document.getElementById('wk-total-' + m.regiao);
+      if (totEl) totEl.textContent = m.total;
+      if (m.rows && m.rows.length) {
+        m.rows.forEach(r => { r.regiao = m.regiao; liveRows.push(r); });
+        renderLiveRows(m.rows);
+      }
+      updateTotalGeral();
+    }
+    else if (m.type === 'log') {
+      addLog(m.msg, m.msg.includes('Erro') ? 'err' : 'info');
+    }
+    else if (m.type === 'done') {
+      const card = document.getElementById('wk-' + m.regiao);
+      if (card) {
+        card.querySelector('.badge').className = 'badge badge-done';
+        card.querySelector('.badge').textContent = 'Concluido';
+        const bar = document.getElementById('wk-bar-' + m.regiao);
+        if (bar) bar.style.width = '100%';
+      }
+      addLog('[CRTR' + m.regiao + '] Concluido! ' + m.total + ' registros', 'ok');
+      updateTotalGeral();
+    }
+    else if (m.type === 'end') {
+      evtSrc.close();
+    }
+  };
+  evtSrc.onerror = function() { evtSrc.close(); };
+}
+
+function renderLiveRows(newRows) {
+  const tbody = document.getElementById('liveBody');
+  const filter = document.getElementById('liveFilter').value.toLowerCase();
+  newRows.forEach(r => {
+    const idx = liveRows.length;
+    const label = regLabel(r.regiao);
+    const searchStr = (label + ' ' + r.numero_registro + ' ' + r.nome_razao_social + ' ' + r.cidade + ' ' + r.situacao).toLowerCase();
+    const hidden = filter && !searchStr.includes(filter);
+    const tr = document.createElement('tr');
+    tr.dataset.search = searchStr;
+    if (hidden) tr.style.display = 'none';
+    tr.innerHTML = `<td class="text-muted">${idx}</td><td><strong>${esc(label)}</strong></td><td>${esc(r.numero_registro)}</td><td>${esc(r.nome_razao_social)}</td><td>${esc(r.cidade)}</td><td>${sitBadge(r.situacao)}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('liveCount').textContent = liveRows.length;
+  const wrap = document.getElementById('liveTableWrap');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function filterLive() {
+  const q = document.getElementById('liveFilter').value.toLowerCase();
+  document.querySelectorAll('#liveBody tr').forEach(tr => {
+    tr.style.display = !q || tr.dataset.search.includes(q) ? '' : 'none';
+  });
+}
+
+function sortLive(col) {
+  const tbody = document.getElementById('liveBody');
+  const rows = Array.from(tbody.rows);
+  rows.sort((a,b) => a.cells[col].textContent.localeCompare(b.cells[col].textContent, 'pt-BR'));
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+function updateTotalGeral() {
+  fetch('/api/stats').then(r=>r.json()).then(d => {
+    document.getElementById('totalGeral').textContent = d.total;
+  });
+}
+
+function loadDados() {
+  const rid = document.getElementById('dadosRegiao').value;
+  fetch('/api/registros?regiao=' + rid).then(r=>r.json()).then(rows => {
+    const tbody = document.getElementById('dadosBody');
+    tbody.innerHTML = '';
+    rows.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="text-muted">${i+1}</td><td><strong>${esc(regLabel(r.regiao))}</strong></td><td>${esc(r.numero_registro)}</td><td>${esc(r.nome_razao_social)}</td><td>${esc(r.cidade)}</td><td>${sitBadge(r.situacao)}</td>`;
+      tbody.appendChild(tr);
+    });
+    document.getElementById('dadosCount').textContent = rows.length + ' registros';
+  });
+}
+
+function exportDados() {
+  const rid = document.getElementById('dadosRegiao').value;
+  window.location.href = '/api/export?regiao=' + rid;
+}
+
+async function deleteDados() {
+  const rid = document.getElementById('dadosRegiao').value;
+  const label = rid ? 'dados de CRTR' + rid : 'TODOS os dados';
+  const ok = await showConfirm('Tem certeza que deseja apagar ' + label + '?',{title:'Excluir dados',ok:'Apagar',danger:true});
+  if(!ok) return;
+  fetch('/api/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({regiao: rid}) })
+  .then(() => { loadDados(); updateTotalGeral(); });
+}
+
+function loadStats() {
+  fetch('/api/stats').then(r=>r.json()).then(d => {
+    const row = document.getElementById('regStatsRow');
+    row.innerHTML = '';
+    const sorted = Object.entries(d.by_regiao).sort((a,b) => b[1]-a[1]);
+    sorted.forEach(([rid, cnt]) => {
+      row.innerHTML += `<div class="col-4 col-md-2"><div class="card stat"><div class="n" style="color:var(--green)">${cnt}</div><div class="l">${regLabel(rid)}</div></div></div>`;
+    });
+
+    const tbody = document.getElementById('histBody');
+    tbody.innerHTML = '';
+    d.consultas.forEach(c => {
+      const cls = c.status === 'concluido' ? 'badge-done' : c.status === 'rodando' ? 'badge-run' : c.status === 'erro' ? 'badge-err' : 'badge-stop';
+      tbody.innerHTML += `<tr><td>${c.id}</td><td><strong>${esc(regLabel(c.regiao))}</strong></td><td><span class="badge ${cls}">${c.status}</span></td><td>${c.total}</td><td>${c.novos}</td><td>${c.prefixo}</td><td>${fmtDate(c.inicio)}</td><td>${fmtDate(c.fim)}</td></tr>`;
+    });
+  });
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+function sitBadge(s) {
+  const l = (s||'').toLowerCase();
+  let c = 'sit-default';
+  if (l.includes('ativo') && !l.includes('in')) c = 'sit-ativo';
+  else if (l.includes('cancel')) c = 'sit-cancelado';
+  else if (l.includes('suspen')) c = 'sit-suspenso';
+  return '<span class="badge badge-sit ' + c + '">' + esc(s) + '</span>';
+}
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleString('pt-BR');
+}
+function addLog(msg, cls) {
+  const el = document.getElementById('log');
+  const t = new Date().toLocaleTimeString('pt-BR');
+  el.innerHTML += '<div><span class="log-t">[' + t + ']</span> <span class="log-' + (cls||'info') + '">' + msg + '</span></div>';
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog() { document.getElementById('log').innerHTML = ''; }
+
+updateTotalGeral();
+</script>
+</body>
+</html>

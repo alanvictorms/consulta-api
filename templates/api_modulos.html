@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Módulos da API · Sistema{% endblock %}
+{% block page_id %}modulos{% endblock %}
+{% block topbar_title %}Módulos da API{% endblock %}
+
+{% block content %}
+<div class="rd-page">
+    <div class="ux-head">
+        <div>
+            <span class="ux-eyebrow">CATÁLOGO DA API</span>
+            <h1>Módulos disponíveis.</h1>
+            <p>Explore os recursos disponíveis no seu plano e revise os parâmetros e identificadores de cada consulta.</p>
+        </div>
+        <a class="ux-btn primary" href="/api-playground"><svg aria-hidden="true" class="rd-ico"><use href="#i-terminal"></use></svg> Abrir Playground</a>
+    </div>
+
+    <div class="ux-card pad ux-gap">
+        <div style="display:flex;gap:.65rem;flex-wrap:wrap;align-items:center">
+            <label class="ux-searchbox">
+                <svg aria-hidden="true" class="rd-ico"><use href="#i-search"></use></svg>
+                <input id="am-search" placeholder="Pesquise um módulo, categoria, ID ou parâmetro..." type="search"/>
+            </label>
+            <span class="ux-pill" id="am-count">{{ modules|length }} de {{ modules|length }} módulos</span>
+        </div>
+    </div>
+
+    <div class="ux-filters" id="am-filters">
+        <button type="button" class="ux-filter active" data-cat="Todos">Todos</button>
+        {% for c in categories %}
+        <button type="button" class="ux-filter" data-cat="{{ c }}">{{ c }}</button>
+        {% endfor %}
+    </div>
+    <div class="ux-api-module-layout">
+        <div class="ux-card ux-module-list" id="am-list">
+            {% for m in modules %}
+            <button type="button" class="ux-module-list-row {% if loop.first %}active{% endif %}" data-index="{{ loop.index0 }}">
+                <span class="ux-mini-icon"><svg class="rd-ico" aria-hidden="true"><use href="#i-{{ m.icon or 'file' }}"></use></svg></span>
+                <span class="grow">
+                    <strong>{{ m.label }}</strong>
+                    <small>{{ m.category }} · <code>{{ m.id }}</code> · {{ m.params|length }} parâmetro(s)</small>
+                </span>
+                <svg class="rd-ico" aria-hidden="true"><use href="#i-chevron"></use></svg>
+            </button>
+            {% endfor %}
+        </div>
+        <aside class="ux-card pad ux-module-detail" id="am-detail"></aside>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(()=>{
+    const uiEscape = window.uiEscape || (s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+    const uiIcons = window.uiIcons || ((id, cls='') => `<svg class="rd-ico ${cls}" aria-hidden="true"><use href="#i-${id}"></use></svg>`);
+    const uiMods = ({{ modules|tojson }}).map((m, i) => ({
+        ...m,
+        idx: i,
+        icon: m.icon || 'file',
+        verified: true
+    }));
+    const $ = id => document.getElementById(id);
+    let cat = 'Todos', selected = 0;
+    const cats = ['Todos', ...new Set(uiMods.map(m => m.category))].sort((a, b) => a === 'Todos' ? -1 : b === 'Todos' ? 1 : a.localeCompare(b, 'pt-BR'));
+
+    function renderFilters() {
+        $('am-filters').innerHTML = cats.map(c =>
+            `<button type="button" class="ux-filter ${c === cat ? 'active' : ''}" data-cat="${uiEscape(c)}">${uiEscape(c)}</button>`
+        ).join('');
+    }
+
+    function filtered() {
+        const s = ($('am-search').value || '').toLowerCase().trim();
+        return uiMods.filter(m =>
+            (cat === 'Todos' || m.category === cat) &&
+            [m.label, m.category, m.description, m.id, m.provider_label || '', m.params.map(p => p.name).join(' ')].join(' ').toLowerCase().includes(s)
+        );
+    }
+
+    function select(idx) {
+        selected = idx;
+        const m = uiMods[idx];
+        if (!m) return;
+        document.querySelectorAll('.ux-module-list-row').forEach(b => b.classList.toggle('active', Number(b.dataset.index) === idx));
+        const sampleBody = { module: m.id };
+        m.params.forEach(p => { if (p.required) sampleBody[p.name] = 'VALOR'; });
+        $('am-detail').innerHTML = `
+            <span class="ux-eyebrow">FICHA DO MÓDULO</span>
+            <div class="ux-iconbox" style="margin:.4rem 0">${uiIcons(m.icon)}</div>
+            <h2>${uiEscape(m.label)}</h2>
+            <p>${uiEscape(m.description)}</p>
+            <div class="ux-divider"></div>
+            <dl class="ux-kv">
+                <dt>Identificador (module)</dt><dd class="ux-mono">${uiEscape(m.id)}</dd>
+                <dt>Categoria</dt><dd>${uiEscape(m.category)}</dd>
+                <dt>Método HTTP</dt><dd>POST</dd>
+                <dt>Endpoint</dt><dd class="ux-mono">/api/v1/query</dd>
+            </dl>
+            <div class="ux-divider"></div>
+            <h3 style="font-size:.84rem">Parâmetros</h3>
+            <div class="ux-param-list">
+                ${m.params.length ? m.params.map(p => `
+                    <div class="ux-param-line">
+                        <code>${uiEscape(p.name)}</code>
+                        <span class="ux-pill ${p.required ? 'accent' : ''}">${p.required ? 'Obrigatório' : 'Opcional'}</span>
+                    </div>
+                `).join('') : '<p class="ux-muted">Nenhum parâmetro registrado.</p>'}
+            </div>
+            <div class="ux-code" style="margin-bottom:1rem">
+                <div class="ux-codehead"><strong>Corpo JSON (POST /api/v1/query)</strong></div>
+                <pre>${uiEscape(JSON.stringify(sampleBody, null, 2))}</pre>
+            </div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+                <a href="/api-playground?module=${encodeURIComponent(m.id)}" class="ux-btn primary">${uiIcons('terminal')} Testar no Playground</a>
+                <a class="ux-btn" href="/docs#catalogo-modulos">Documentação</a>
+            </div>
+        `;
+    }
+
+    function render() {
+        const items = filtered();
+        $('am-count').textContent = items.length + ' de ' + uiMods.length + ' módulos';
+        $('am-list').innerHTML = items.map(m => `
+            <button type="button" class="ux-module-list-row ${selected === m.idx ? 'active' : ''}" data-index="${m.idx}">
+                <span class="ux-mini-icon">${uiIcons(m.icon)}</span>
+                <span class="grow">
+                    <strong>${uiEscape(m.label)}</strong>
+                    <small>${uiEscape(m.category)} · <code>${uiEscape(m.id)}</code> · ${m.params.length} parâmetro(s)</small>
+                </span>
+                ${uiIcons('chevron')}
+            </button>
+        `).join('') || '<div class="ux-empty" style="padding:2rem;text-align:center">Nenhum módulo encontrado.</div>';
+
+        if (items.length) {
+            if (!items.some(m => m.idx === selected)) selected = items[0].idx;
+            select(selected);
+        } else {
+            $('am-detail').innerHTML = '<div class="ux-empty" style="padding:2rem;text-align:center">Selecione um módulo.</div>';
+        }
+    }
+
+    $('am-filters').addEventListener('click', e => {
+        const b = e.target.closest('[data-cat]');
+        if (!b) return;
+        cat = b.dataset.cat;
+        renderFilters();
+        render();
+    });
+    $('am-list').addEventListener('click', e => {
+        const b = e.target.closest('[data-index]');
+        if (b) select(Number(b.dataset.index));
+    });
+    $('am-search').addEventListener('input', render);
+    renderFilters();
+    render();
+})();
+</script>
+{% endblock %}

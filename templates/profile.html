@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Perfil · Sistema{% endblock %}
+{% block page_id %}profile{% endblock %}
+{% block topbar_title %}Meu perfil{% endblock %}
+{% block content %}
+<div class="rd-page">
+<div class="ux-head"><div><span class="ux-eyebrow">MINHA CONTA</span><h1>Perfil e preferências.</h1><p>Informações de acesso, consumo da conta e opções de segurança em um único espaço.</p></div></div>
+<div class="ux-profile-layout">
+<aside class="ux-card ux-profile-summary">
+    <div class="ux-profile-avatar">{{ user.username[:2]|upper }}</div>
+    <span class="ux-pill accent">{{ 'Administrador' if user.role == 'admin' else 'Conta API' if user.role == 'api_user' else 'Usuário' }}</span>
+    <h2>{{ user.username }}</h2>
+    <p>{{ user.email or 'Sem e-mail cadastrado' }}</p>
+    <div class="ux-divider"></div>
+    <dl class="ux-kv"><dt>Plano atual</dt><dd>{{ user.plan.name if user.plan else 'Sem plano' }}</dd><dt>Situação da conta</dt><dd>{{ 'Ativa' if user.is_active else 'Inativa' }}</dd><dt>Membro desde</dt><dd>{{ user.created_at.strftime('%d/%m/%Y') if user.created_at else '—' }}</dd></dl>
+</aside>
+<div class="ux-stack">
+    <section class="ux-card pad"><div class="ux-section-head"><div><h2><svg class="rd-ico" aria-hidden="true"><use href="#i-id"></use></svg> Informações da conta</h2><p>Identificação e permissões atuais.</p></div><span class="ux-pill">Somente leitura</span></div>
+    <dl class="ux-profile-details"><div><dt>Nome de usuário</dt><dd>{{ user.username }}</dd></div><div><dt>E-mail cadastrado</dt><dd>{{ user.email or 'Não informado' }}</dd></div><div><dt>Tipo de acesso</dt><dd>{{ 'Administrador' if user.role == 'admin' else 'Acesso API' if user.role == 'api_user' else 'Consultas' }}</dd></div><div><dt>Plano</dt><dd>{{ user.plan.name if user.plan else 'Sem plano' }}</dd></div></dl></section>
+    <section class="ux-card pad"><div class="ux-section-head"><div><h2><svg class="rd-ico" aria-hidden="true"><use href="#i-list"></use></svg> Resumo de utilização</h2><p>Indicadores de atividade da conta.</p></div></div>
+    <div class="ux-grid three"><div class="ux-stat"><div><span>Consultas hoje</span><strong>{{ user.credits_used_today }}</strong></div></div><div class="ux-stat"><div><span>Consultas totais</span><strong>{{ user.credits_used_total }}</strong></div></div><div class="ux-stat"><div><span>Limite diário</span><strong class="small">{{ 'Ilimitado' if user.role == 'admin' else user.plan.daily_limit if user.plan else 0 }}</strong></div></div></div></section>
+    <section class="ux-card pad"><div class="ux-section-head"><div><h2><svg class="rd-ico" aria-hidden="true"><use href="#i-lock"></use></svg> Segurança da conta</h2><p>Atualize sua senha para proteger o acesso.</p></div></div>
+    <form id="pw-form"><div class="ux-form-grid"><div class="ux-field"><label class="ux-label" for="current-password">Senha atual</label><input class="ux-input" id="current-password" type="password" name="current" autocomplete="current-password" required placeholder="Senha atual"></div><div class="ux-field"><label class="ux-label" for="new-password">Nova senha</label><input class="ux-input" id="new-password" type="password" name="new" autocomplete="new-password" required minlength="4" placeholder="Nova senha (mín. 4 caracteres)"></div></div>
+    <div class="ux-form-actions"><span class="ux-muted">Use uma senha exclusiva com pelo menos 4 caracteres.</span><button class="ux-btn primary" type="submit"><svg class="rd-ico" aria-hidden="true"><use href="#i-shield"></use></svg> Salvar senha</button></div></form>
+    <div class="ux-hint" id="pw-feedback" role="status"></div></section>
+</div>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('pw-form').addEventListener('submit',async e=>{
+    e.preventDefault();const fd=new FormData(e.target),btn=e.target.querySelector('button[type=submit]');btn.disabled=true;
+    try{const r=await fetch('/api/auth/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current:fd.get('current'),new:fd.get('new')})});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||'Não foi possível alterar a senha.');toast('Senha alterada!');e.target.reset();}catch(err){toast(err.message,'error');}finally{btn.disabled=false;}
+});
+</script>
+{% endblock %}

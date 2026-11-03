@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Playground API · Sistema{% endblock %}
+{% block page_id %}playground{% endblock %}
+{% block topbar_title %}Playground API{% endblock %}
+
+{% block content %}
+<div class="rd-page">
+    <div class="ux-head">
+        <div>
+            <span class="ux-eyebrow">AMBIENTE DE TESTES</span>
+            <h1>Playground da API.</h1>
+            <p>Configure um módulo, confira a requisição e execute chamadas reais em tempo real.</p>
+        </div>
+        <a class="ux-btn" href="/docs"><svg aria-hidden="true" class="rd-ico"><use href="#i-book"></use></svg> Documentação</a>
+    </div>
+
+    <div class="ux-pg-dual">
+        <section class="ux-card pad">
+            <div class="ux-section-head">
+                <div>
+                    <h2><svg aria-hidden="true" class="rd-ico"><use href="#i-sliders"></use></svg> Configurar consulta</h2>
+                    <p>Parâmetros e credencial de acesso.</p>
+                </div>
+                <span class="ux-pill accent">Execução Real</span>
+            </div>
+            <div class="ux-endpoint">
+                <span class="ux-method">POST</span>
+                <code>/api/v1/query</code>
+                <span class="ux-pill" style="margin-left:auto">JSON</span>
+            </div>
+            <form id="pg-form">
+                <div class="ux-form-grid">
+                    <div class="ux-field">
+                        <label class="ux-label" for="pg-module">Módulo</label>
+                        <select class="ux-select" id="pg-module">
+                            {% for m in modules %}
+                            <option value="{{ m.id }}">{{ m.label }} ({{ m.id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="ux-field">
+                        <label class="ux-label" for="pg-key-select">Chave cadastrada</label>
+                        <select class="ux-select" id="pg-key-select">
+                            {% if keys %}
+                            {% for k in keys %}
+                            <option value="kid:{{ k.id }}">{{ k.label }} ({{ k.masked }})</option>
+                            {% endfor %}
+                            {% endif %}
+                            <option value="custom">Digitar / colar API Key manualmente</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="ux-field" id="pg-custom-key-wrap" style="margin-top:.75rem;{% if keys %}display:none{% endif %}">
+                    <label class="ux-label" for="pg-key-input">API Key (X-API-Key)</label>
+                    <input class="ux-input" id="pg-key-input" placeholder="sk_..." autocomplete="off"/>
+                </div>
+                <p class="ux-hint" id="pg-desc"></p>
+                <div class="ux-divider"></div>
+                <div class="ux-section-head">
+                    <div>
+                        <h2>Parâmetros da consulta</h2>
+                        <p>Os campos mudam de acordo com o módulo.</p>
+                    </div>
+                    <span class="ux-pill">* Obrigatório</span>
+                </div>
+                <div class="ux-pg-params" id="pg-params"></div>
+                <div class="ux-divider"></div>
+                <div class="ux-form-actions" style="display:flex;justify-content:flex-end;margin-top:1rem">
+                    <button class="ux-btn primary" id="pg-send" type="submit">
+                        <svg aria-hidden="true" class="rd-ico"><use href="#i-arrow"></use></svg>
+                        <span>Enviar requisição</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="ux-stack">
+            <div class="ux-code">
+                <div class="ux-codehead">
+                    <strong>Request Preview</strong>
+                    <button class="ux-btn" id="pg-copy-request" type="button"><svg aria-hidden="true" class="rd-ico"><use href="#i-copy"></use></svg> Copiar</button>
+                </div>
+                <pre id="pg-request"></pre>
+            </div>
+            <div class="ux-code">
+                <div class="ux-codehead">
+                    <strong>Response</strong>
+                    <span class="ux-pg-result-status" id="pg-status">Aguardando envio</span>
+                    <button class="ux-btn" id="pg-copy-response" type="button"><svg aria-hidden="true" class="rd-ico"><use href="#i-copy"></use></svg> Copiar</button>
+                </div>
+                <pre id="pg-response" style="max-height:460px;overflow:auto">{
+  "info": "Preencha os parâmetros e clique em Enviar requisição."
+}</pre>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(()=>{
+    const uiEscape = window.uiEscape || (s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+    const uiCopy = window.uiCopy || (async s => { try { await navigator.clipboard.writeText(String(s ?? '')); toast('Copiado!'); } catch(e){} });
+    const uiMods = {{ modules|tojson }};
+    const $ = id => document.getElementById(id);
+    const modsel = $('pg-module'), params = $('pg-params'), keysel = $('pg-key-select'), keyinp = $('pg-key-input');
+    let inFlight = false;
+
+    modsel.innerHTML = uiMods.map(m => `<option value="${uiEscape(m.id)}">${uiEscape(m.label)} (${uiEscape(m.id)})</option>`).join('');
+    const wanted = new URL(location.href).searchParams.get('module');
+    if (wanted && uiMods.find(m => m.id === wanted)) modsel.value = wanted;
+
+    const current = () => uiMods.find(m => m.id === modsel.value) || uiMods[0];
+
+    function getBody() {
+        const m = current();
+        if (!m) return {};
+        const d = { module: m.id };
+        params.querySelectorAll('[data-param]').forEach(i => {
+            if (i.value.trim()) d[i.dataset.param] = i.value.trim();
+        });
+        return d;
+    }
+
+    function updateReq() {
+        const body = getBody();
+        const keyMode = keysel.value;
+        const customWrap = $('pg-custom-key-wrap');
+        customWrap.style.display = keyMode === 'custom' ? '' : 'none';
+        const displayKey = keyMode === 'custom'
+            ? (keyinp.value.trim() || 'SUA_CHAVE')
+            : (keysel.options[keysel.selectedIndex]?.text || 'CHAVE_SELECIONADA');
+        const url = window.location.origin + '/api/v1/query';
+        $('pg-request').textContent = `POST ${url}\nX-API-Key: ${displayKey}\nContent-Type: application/json\n\n${JSON.stringify(body, null, 2)}`;
+    }
+
+    function updateFields() {
+        const m = current();
+        if (!m) return;
+        $('pg-desc').textContent = m.description;
+        params.innerHTML = m.params.length ? m.params.map(p => `
+            <div class="ux-field">
+                <label for="pgp-${uiEscape(p.name)}" class="ux-label">${uiEscape(p.name)}${p.required ? ' *' : ''}</label>
+                <input id="pgp-${uiEscape(p.name)}" class="ux-input" data-param="${uiEscape(p.name)}" data-required="${p.required ? '1' : '0'}" placeholder="Informe ${uiEscape(p.name)}" ${p.required ? 'required' : ''} autocomplete="off" maxlength="150"/>
+            </div>
+        `).join('') : '<span class="ux-muted">Nenhum parâmetro exigido para este módulo.</span>';
+        params.querySelectorAll('input').forEach(i => i.addEventListener('input', updateReq));
+        updateReq();
+    }
+
+    modsel.addEventListener('change', updateFields);
+    keysel.addEventListener('change', updateReq);
+    keyinp.addEventListener('input', updateReq);
+
+    $('pg-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        if (inFlight) return;
+        const m = current();
+        if (!m) return;
+        const body = getBody();
+        for (const p of m.params) {
+            if (p.required && !body[p.name]) {
+                toast(`Preencha o parâmetro obrigatório: ${p.name}`, 'error');
+                $(`pgp-${p.name}`)?.focus();
+                return;
+            }
+        }
+
+        const keyMode = keysel.value;
+        const rawKey = keyinp.value.trim();
+        if (keyMode === 'custom' && !rawKey) {
+            toast('Informe sua API Key ou selecione uma chave cadastrada.', 'error');
+            keyinp.focus();
+            return;
+        }
+
+        inFlight = true;
+        const sendBtn = $('pg-send');
+        sendBtn.disabled = true;
+        sendBtn.querySelector('span').textContent = 'Enviando...';
+        $('pg-status').textContent = 'Consultando...';
+        $('pg-response').textContent = 'Aguardando resposta do servidor...';
+
+        const t0 = performance.now();
+        try {
+            let resp;
+            if (keyMode.startsWith('kid:') && !rawKey) {
+                const kid = keyMode.split(':')[1];
+                resp = await fetch(`/api/keys/${kid}/playground`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+            } else {
+                resp = await fetch('/api/v1/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-API-Key': rawKey,
+                    },
+                    body: JSON.stringify(body),
+                });
+            }
+            const ms = Math.round(performance.now() - t0);
+            const data = await resp.json();
+            $('pg-status').innerHTML = `<span class="ux-pill ${resp.ok ? 'accent' : ''}">HTTP ${resp.status}</span> · ${ms} ms`;
+            $('pg-response').textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+            const ms = Math.round(performance.now() - t0);
+            $('pg-status').textContent = `Erro de rede · ${ms} ms`;
+            $('pg-response').textContent = 'Erro: ' + err.message;
+        } finally {
+            inFlight = false;
+            sendBtn.disabled = false;
+            sendBtn.querySelector('span').textContent = 'Enviar requisição';
+        }
+    });
+
+    $('pg-copy-request').addEventListener('click', () => uiCopy($('pg-request').textContent));
+    $('pg-copy-response').addEventListener('click', () => uiCopy($('pg-response').textContent));
+    updateFields();
+})();
+</script>
+{% endblock %}

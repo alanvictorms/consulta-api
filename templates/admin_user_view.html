@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}{{ target.username }} · Admin{% endblock %}
+{% block page_id %}admin{% endblock %}
+{% block topbar_title %}Detalhes do Usuário{% endblock %}
+
+{% block head %}
+<style>
+.uv-back{display:inline-flex;align-items:center;gap:.4rem;color:var(--muted);font-size:.85rem;margin-bottom:1rem;cursor:pointer;text-decoration:none}
+.uv-back:hover{color:var(--text)}
+.uv-hero{background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:16px;padding:1.75rem 2rem;margin-bottom:1.25rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
+.uv-avatar{width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:700;color:#fff;border:3px solid rgba(255,255,255,.3)}
+.uv-info{flex:1;min-width:200px}
+.uv-info h1{margin:0;font-size:1.5rem;font-weight:700;color:#fff}
+.uv-info .uv-sub{color:rgba(255,255,255,.7);font-size:.85rem;margin-top:.2rem}
+.uv-badges{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap}
+.uv-badge{font-size:.7rem;font-weight:600;padding:.2rem .6rem;border-radius:10px;background:rgba(255,255,255,.18);color:#fff}
+.uv-badge.green{background:rgba(16,185,129,.3);color:#6ee7b7}
+.uv-badge.red{background:rgba(239,68,68,.3);color:#fca5a5}
+.uv-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+.uv-btn{padding:.5rem 1rem;border-radius:10px;font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;transition:all .15s}
+.uv-btn:hover{background:rgba(255,255,255,.22)}
+.uv-btn.danger{border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.15);color:#fca5a5}
+.uv-btn.primary{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.4)}
+
+.uv-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem}
+@media(max-width:760px){.uv-grid{grid-template-columns:1fr}}
+.uv-card{background:var(--surface);border:1px solid var(--soft);border-radius:14px;padding:1.25rem}
+.uv-card h3{margin:0 0 .75rem;font-size:.95rem;font-weight:600;color:var(--text);display:flex;align-items:center;gap:.4rem}
+.uv-card.full{grid-column:1/-1}
+.uv-field{display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--soft)}
+.uv-field:last-child{border:none}
+.uv-field .label{font-size:.78rem;color:var(--muted);font-weight:500}
+.uv-field .value{font-size:.85rem;color:var(--text);font-weight:600;text-align:right}
+
+.uv-logs{background:var(--surface);border:1px solid var(--soft);border-radius:14px;padding:1.25rem;margin-bottom:1.25rem}
+.uv-logs h3{margin:0 0 .75rem;font-size:.95rem;font-weight:600;color:var(--text)}
+.uv-log-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.uv-log-table th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:.5rem .4rem;border-bottom:1px solid var(--soft)}
+.uv-log-table td{padding:.5rem .4rem;border-bottom:1px solid var(--soft);color:var(--text)}
+.uv-log-table tr:hover td{background:var(--soft)}
+.uv-status{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.3rem}
+.uv-status.ok{background:#10b981}
+.uv-status.err{background:#ef4444}
+
+.uv-keys{background:var(--surface);border:1px solid var(--soft);border-radius:14px;padding:1.25rem;margin-bottom:1.25rem}
+.uv-keys h3{margin:0 0 .75rem;font-size:.95rem;font-weight:600;color:var(--text)}
+.uv-key-item{display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--soft)}
+.uv-key-item:last-child{border:none}
+.uv-key-label{font-size:.8rem;font-weight:600;color:var(--text)}
+.uv-key-val{font-size:.75rem;color:var(--muted);font-family:monospace;background:var(--soft);padding:.2rem .5rem;border-radius:6px}
+.uv-key-date{font-size:.7rem;color:var(--muted);margin-left:auto}
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="/admin" class="uv-back">← Voltar ao Admin</a>
+
+<div class="uv-hero">
+    <div class="uv-avatar">{{ target.username[:2]|upper }}</div>
+    <div class="uv-info">
+        <h1>{{ target.username }}</h1>
+        <div class="uv-sub">{{ target.email or 'Sem e-mail cadastrado' }} · Criado em {{ target.created_at.strftime('%d/%m/%Y') if target.created_at else 'N/A' }}</div>
+        <div class="uv-badges">
+            <span class="uv-badge">{{ target.role|upper }}</span>
+            {% if target.is_active %}<span class="uv-badge green">ATIVO</span>{% else %}<span class="uv-badge red">INATIVO</span>{% endif %}
+            {% if target.plan %}<span class="uv-badge">Plano: {{ target.plan.name }}</span>{% endif %}
+        </div>
+    </div>
+    <div class="uv-actions">
+        <button class="uv-btn primary" onclick="impersonate({{ target.id }})">🔑 Logar como usuário</button>
+        <button type="button" class="uv-btn" id="edit-user-toggle" onclick="setUserEditing(true)">Editar usuário</button>
+    </div>
+</div>
+
+<form id="inline-user-form" class="panel inline-user-editor" data-user-id="{{ target.id }}" hidden>
+    <div class="panel-heading"><div><h2>Editar usuário</h2><p>Atualize os dados desta conta sem sair da página.</p></div><span class="badge blue">#{{ target.id }}</span></div>
+    <div class="form-grid">
+        <div class="account-field"><label for="edit-username">Nome de usuário</label><input id="edit-username" value="{{ target.username }}" readonly/><small>O nome de acesso não pode ser alterado.</small></div>
+        <div class="account-field"><label for="edit-email">E-mail</label><input id="edit-email" name="email" type="email" value="{{ target.email or '' }}"/></div>
+        <div class="account-field"><label for="edit-role">Tipo de conta</label><select id="edit-role" name="role">{% for value,label in [('user','Usuário de consultas'),('api_user','Usuário API'),('consulta_api','Consulta + API'),('admin','Administrador')] %}<option value="{{ value }}" {% if target.role == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="account-field"><label for="edit-plan">Plano</label><select id="edit-plan" name="plan_id"><option value="">Sem plano</option>{% for plan in plans %}<option value="{{ plan.id }}" {% if target.plan_id == plan.id %}selected{% endif %}>{{ plan.name }} ({{ 'Consulta + API' if plan.plan_type in ('consulta_api','ambos') else 'API' if plan.plan_type == 'api' else 'Consulta' }})</option>{% endfor %}</select></div>
+        <div class="account-field"><label for="edit-status">Status</label><select id="edit-status" name="is_active"><option value="true" {% if target.is_active %}selected{% endif %}>Ativo</option><option value="false" {% if not target.is_active %}selected{% endif %}>Inativo</option></select></div>
+        <div class="account-field"><label for="edit-credits">Créditos usados hoje</label><input id="edit-credits" name="credits_used_today" type="number" min="0" required value="{{ target.credits_used_today }}"/></div>
+    </div>
+    <p id="inline-edit-error" role="alert"></p>
+    <div class="account-form-footer"><span>As alterações serão aplicadas ao salvar.</span><div><button class="btn-sm" type="button" onclick="setUserEditing(false)">Cancelar</button> <button class="btn-sm primary" type="submit">Salvar alterações</button></div></div>
+</form>
+<div class="uv-grid" id="user-details-readonly">
+    <div class="uv-card">
+        <h3>📋 Informações da Conta</h3>
+        <div class="uv-field"><span class="label">ID</span><span class="value">#{{ target.id }}</span></div>
+        <div class="uv-field"><span class="label">Username</span><span class="value">{{ target.username }}</span></div>
+        <div class="uv-field"><span class="label">E-mail</span><span class="value">{{ target.email or '—' }}</span></div>
+        <div class="uv-field"><span class="label">Role</span><span class="value">{{ target.role }}</span></div>
+        <div class="uv-field"><span class="label">Status</span><span class="value">{% if target.is_active %}✅ Ativo{% else %}❌ Inativo{% endif %}</span></div>
+        <div class="uv-field"><span class="label">Criado em</span><span class="value">{{ target.created_at.strftime('%d/%m/%Y %H:%M') if target.created_at else '—' }}</span></div>
+    </div>
+    <div class="uv-card">
+        <h3>💳 Créditos & Plano</h3>
+        <div class="uv-field"><span class="label">Plano Atual</span><span class="value">{{ target.plan.name if target.plan else 'Nenhum' }}</span></div>
+        <div class="uv-field"><span class="label">Tipo do Plano</span><span class="value">{{ 'Consulta + API' if target.plan and target.plan.plan_type in ('consulta_api','ambos') else target.plan.plan_type if target.plan else '—' }}</span></div>
+        <div class="uv-field"><span class="label">Limite Diário</span><span class="value">{{ target.plan.daily_limit if target.plan else '—' }}</span></div>
+        <div class="uv-field"><span class="label">Limite Mensal</span><span class="value">{{ target.plan.monthly_limit if target.plan else '—' }}</span></div>
+        <div class="uv-field"><span class="label">Créditos Hoje</span><span class="value">{{ target.credits_used_today }}</span></div>
+        <div class="uv-field"><span class="label">Total Usado</span><span class="value">{{ target.credits_used_total }}</span></div>
+        <div class="uv-field"><span class="label">Último Reset</span><span class="value">{{ target.last_credit_reset.strftime('%d/%m/%Y') if target.last_credit_reset else '—' }}</span></div>
+    </div>
+</div>
+
+{% if api_keys %}
+<div class="uv-keys">
+    <h3>🔐 Chaves de API ({{ api_keys|length }})</h3>
+    {% for k in api_keys %}
+    <div class="uv-key-item">
+        <span class="uv-key-label">{{ k.label or 'Sem label' }}</span>
+        <span class="uv-key-val">{{ k.key[:8] }}...{{ k.key[-4:] }}</span>
+        <span class="uv-key-date">{% if k.is_active %}🟢{% else %}🔴{% endif %} {{ k.created_at.strftime('%d/%m/%Y') if k.created_at else '' }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="uv-logs">
+    <h3>📊 Histórico de Consultas (últimas 50)</h3>
+    {% if logs %}
+    <table class="uv-log-table">
+        <thead><tr><th>Módulo</th><th>Consulta</th><th>Status</th><th>Tempo</th><th>Data</th></tr></thead>
+        <tbody>
+        {% for l in logs %}
+        <tr>
+            <td>{{ l.module or l.endpoint }}</td>
+            <td>{{ l.query_param[:30] }}{% if l.query_param and l.query_param|length > 30 %}...{% endif %}</td>
+            <td><span class="uv-status {% if l.status_code and l.status_code < 400 %}ok{% else %}err{% endif %}"></span>{{ l.status_code or '—' }}</td>
+            <td>{{ l.response_time_ms or 0 }}ms</td>
+            <td>{{ l.created_at.strftime('%d/%m %H:%M') if l.created_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted);font-size:.85rem;text-align:center;padding:1.5rem">Nenhuma consulta registrada.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setUserEditing(editing){
+ const form=document.getElementById('inline-user-form');form.hidden=!editing;
+ document.getElementById('user-details-readonly').hidden=editing;
+ document.getElementById('edit-user-toggle').hidden=editing;
+ form.reset();document.getElementById('inline-edit-error').textContent='';
+ if(editing)document.getElementById('edit-email').focus();
+}
+document.addEventListener('submit',async event=>{
+ if(event.target.id!=='inline-user-form')return;
+ event.preventDefault();const form=event.target,button=form.querySelector('[type=submit]');button.disabled=true;
+ const values=new FormData(form);const data={email:values.get('email'),role:values.get('role'),plan_id:values.get('plan_id')||null,is_active:values.get('is_active')==='true',credits_used_today:Number(values.get('credits_used_today'))};
+ try{
+  const response=await fetch('/api/admin/users/'+form.dataset.userId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'Não foi possível salvar as alterações.');
+  const refreshed=await fetch(location.pathname);if(!refreshed.ok)throw new Error('Alterações salvas. Atualize a página para visualizar os dados.');
+  const doc=new DOMParser().parseFromString(await refreshed.text(),'text/html');const content=doc.querySelector('.workspace-content');if(!content)throw new Error('Alterações salvas. Atualize a página.');
+  document.querySelector('.workspace-content').replaceChildren(...content.childNodes);toast('Usuário atualizado!');
+ }catch(error){document.getElementById('inline-edit-error').textContent=error.message;}finally{button.disabled=false;}
+});
+async function impersonate(uid){
+    const ok=await showConfirm('Tem certeza que deseja logar como este usuário? Você poderá retornar ao administrador pelo aviso no topo.',{title:'Logar como usuário',ok:'Logar'});
+    if(!ok)return;
+    const r=await fetch('/api/admin/impersonate/'+uid,{method:'POST'});
+    const d=await r.json();
+    if(d.ok) window.location.href='/';
+    else showAlert(d.error||'Erro','error');
+}
+if(new URLSearchParams(location.search).get('edit')==='1')setUserEditing(true);
+</script>
+{% endblock %}
