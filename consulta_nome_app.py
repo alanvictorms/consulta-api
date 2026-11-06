@@ -611,7 +611,7 @@ def build_provider_request_config(provider, path):
         or a_low.startswith("mb_")
         or "mb_live_" in a_low
     )
-    if is_cb and "cpfbusca.com" in base.lower():
+    if is_cb and "cpfbuscas.com" in base.lower():
         if base.lower().endswith("/api/v1"):
             base = base + "/query"
         elif "/api/v1/query" not in base.lower():
